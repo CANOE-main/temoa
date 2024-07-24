@@ -370,6 +370,8 @@ class TemoaModel(AbstractModel):
         )
         M.MaxSeasonalActivity = Param(M.MaxSeasonalActivityConstraint_rpst)
 
+        M.MaxSeasonalActivityReserveConstraint_rpsdt = Set(dimen=5, initialize=MaxSeasonalActivityReserveIndices)
+
         M.MinSeasonalActivityConstraint_rpst = Set(
             within=M.RegionalGlobalIndices * M.time_optimize * M.time_season * M.tech_all
         )
@@ -615,6 +617,10 @@ class TemoaModel(AbstractModel):
         # Pre-computing it is considerably faster.
         M.SegFracPerSeason = Param(M.time_season, initialize=SegFracPerSeason_rule)
 
+        M.StorageReserveConstraint = Constraint(
+            M.StorageConstraints_rpsdtv, rule=StorageReserve_Constraint
+        )
+
         M.StorageEnergyUpperBoundConstraint = Constraint(
             M.StorageConstraints_rpsdtv, rule=StorageEnergyUpperBound_Constraint
         )
@@ -686,6 +692,10 @@ class TemoaModel(AbstractModel):
 
         M.MaxSeasonalActivityConstraint = Constraint(
             M.MaxSeasonalActivityConstraint_rpst, rule=MaxSeasonalActivity_Constraint
+        )
+
+        M.MaxSeasonalActivityReserveConstraint = Constraint(
+            M.MaxSeasonalActivityReserveConstraint_rpsdt, rule=MaxSeasonalActivityReserve_Constraint
         )
 
         M.MinSeasonalActivityConstraint = Constraint(

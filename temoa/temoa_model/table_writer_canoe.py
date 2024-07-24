@@ -6,13 +6,11 @@ import sys
 from collections import defaultdict, namedtuple
 from enum import Enum, unique
 from logging import getLogger
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pyomo.core import value, Objective
 from pyomo.opt import SolverResults
 
-from definitions import PROJECT_ROOT
 from temoa.temoa_model import temoa_rules
 from temoa.temoa_model.exchange_tech_cost_ledger import CostType, ExchangeTechCostLedger
 from temoa.temoa_model.temoa_config import TemoaConfig
@@ -55,7 +53,7 @@ Note:  This file borrows heavily from the legacy pformat_results.py, and is some
 
 logger = getLogger(__name__)
 
-basic_output_tables = [
+all_output_tables = [
     'OutputBuiltCapacity',
     'OutputCost',
     'OutputCurtailment',
@@ -67,13 +65,6 @@ basic_output_tables = [
     'OutputObjective',
     'OutputRetiredCapacity',
 ]
-optional_output_tables = [
-    'OutputFlowOutSummary',
-]
-
-flow_summary_file_loc = Path(
-    PROJECT_ROOT, 'temoa/extensions/modeling_to_generate_alternatives/make_flow_summary_table.sql'
-)
 
 
 def _marks(num: int) -> str:
@@ -127,16 +118,11 @@ class TableWriter:
             sys.exit(-1)
 
     def write_results(
-        self,
-        M: TemoaModel,
-        results_with_duals: SolverResults | None = None,
-        append=False,
-        iteration: int | None = None,
+        self, M: TemoaModel, results: SolverResults | None = None, append=False
     ) -> None:
         """
         Write results to output database
-        :param iteration: An interation count for repeated runs, to be passed to tables that support it
-        :param results_with_duals: if provided, this will trigger the writing of dual variables, pulled from the SolverResults
+        :param results: if provided, this will trigger the writing of dual variables, pulled from the SolverResults
         :param M: the model
         :param append: append whatever is already in the tables.  If False (default), clear existing tables by scenario name
         :return:
@@ -145,39 +131,19 @@ class TableWriter:
             self.clear_scenario()
         if not self.tech_sectors:
             self._get_tech_sectors()
-        self.write_objective(M, iteration=iteration)
-        self.write_capacity_tables(M, iteration=iteration)
+        self.write_objective(M)
+        self.write_capacity_tables(M)
         # analyze the emissions to get the costs and flows
         e_costs, e_flows = self._gather_emission_costs_and_flows(M)
         self.emission_register = e_flows
-        self.write_emissions(iteration=iteration)
+        self.write_emissions()
         self.write_costs(M, emission_entries=e_costs)
         self.flow_register = self.calculate_flows(M)
         self.check_flow_balance(M)
-        self.write_flow_tables(iteration=iteration)
-        if results_with_duals:  # write the duals
-            self.write_dual_variables(results_with_duals)
+        self.write_flow_tables()
+        if results:  # write the duals
+            self.write_dual_variables(results)
         # catch-all
-        self.con.commit()
-        self.con.execute('VACUUM')
-
-    def write_mm_results(self, M: TemoaModel, iteration: int):
-        """
-        tailored writer function for Method of Morris which:
-        (a) appends data (so scenario needs to be cleared elsewhere
-        (b) requires an iteration number to separate results
-        (c) only writes to MM required tables (obj, emissions right now)
-        :param M: solved model
-        :param iteration: an iteration index for scenario labeling
-        :return:
-        """
-        if not self.tech_sectors:
-            self._get_tech_sectors()
-        self.write_objective(M, iteration=iteration)
-        # analyze the emissions to get the costs and flows
-        e_costs, e_flows = self._gather_emission_costs_and_flows(M)
-        self.emission_register = e_flows
-        self.write_emissions(iteration=iteration)
         self.con.commit()
         self.con.execute('VACUUM')
 
@@ -189,12 +155,18 @@ class TableWriter:
 
     def clear_scenario(self):
         cur = self.con.cursor()
-        for table in basic_output_tables:
+        for table in all_output_tables:
             cur.execute(f'DELETE FROM {table} WHERE scenario = ?', (self.config.scenario,))
-        for table in optional_output_tables:
-            cur.execute(f'DROP TABLE IF EXISTS {table}')
         self.con.commit()
         self.clear_iterative_runs()
+
+    def clear_indexed_scenarios(self):
+        cur = self.con.cursor()
+        for table in all_output_tables:
+            cur.execute(
+                f'DELETE FROM {table} WHERE 1',
+            )
+        self.con.commit()
 
     def clear_iterative_runs(self):
         """
@@ -204,11 +176,11 @@ class TableWriter:
         """
         target = self.config.scenario + '-%'  # the dash followed by wildcard for anything after
         cur = self.con.cursor()
-        for table in basic_output_tables:
+        for table in all_output_tables:
             cur.execute(f'DELETE FROM {table} WHERE scenario like ?', (target,))
         self.con.commit()
 
-    def write_objective(self, M: TemoaModel, iteration=None) -> None:
+    def write_objective(self, M: TemoaModel) -> None:
         """Write the value of all ACTIVE objectives to the DB"""
         objs: list[Objective] = list(M.component_data_objects(Objective))
         active_objs = [obj for obj in objs if obj.active]
@@ -217,29 +189,20 @@ class TableWriter:
                 'Multiple active objectives found for scenario: %s.  All will be logged in db',
                 self.config.scenario,
             )
-        scenario_name = (
-            self.config.scenario + f'-{iteration}'
-            if iteration is not None
-            else self.config.scenario
-        )
         for obj in active_objs:
             obj_name, obj_value = obj.getname(fully_qualified=True), value(obj)
             qry = 'INSERT INTO OutputObjective VALUES (?, ?, ?)'
-            data = (scenario_name, obj_name, obj_value)
+            data = (self.config.scenario, obj_name, obj_value)
             self.con.execute(qry, data)
             self.con.commit()
 
-    def write_emissions(self, iteration=None) -> None:
+    def write_emissions(self):
         """Write the emission table to the DB"""
         if not self.tech_sectors:
             raise RuntimeError('tech sectors not available... code error')
 
         data = []
-        scenario = (
-            self.config.scenario + f'-{iteration}'
-            if iteration is not None
-            else self.config.scenario
-        )
+        scenario = self.config.scenario
         for ei in self.emission_register:
             sector = self.tech_sectors[ei.t]
             val = self.emission_register[ei]
@@ -297,7 +260,7 @@ class TableWriter:
 
         self.con.commit()
 
-    def write_flow_tables(self, iteration=None) -> None:
+    def write_flow_tables(self, iteration: int | None = None) -> None:
         """Write the flow tables"""
         if not self.tech_sectors:
             raise RuntimeError('tech sectors not available... code error')
@@ -305,11 +268,9 @@ class TableWriter:
             raise RuntimeError('flow_register not available... code error')
         # sort the flows
         flows_by_type: dict[FlowType, list[tuple]] = defaultdict(list)
-        scenario = (
-            self.config.scenario + f'-{iteration}'
-            if iteration is not None
-            else self.config.scenario
-        )
+        scenario = self.config.scenario
+        if iteration:
+            scenario = scenario + f'-{iteration}'
         for fi in self.flow_register:
             sector = self.tech_sectors.get(fi.t)
             for flow_type in self.flow_register[fi]:
@@ -329,52 +290,6 @@ class TableWriter:
         for flow_type, table_name in table_associations.items():
             qry = f'INSERT INTO {table_name} VALUES {_marks(11)}'
             self.con.executemany(qry, flows_by_type[flow_type])
-
-        self.con.commit()
-
-    def write_summary_flow(self, M: TemoaModel, iteration: int | None = None):
-        """
-        This is normally called from MGA (other?)
-        iterative solves where capturing the annual summary of flow out is desired vs. flows by season, tod for
-        single instances
-        :param iteration: the number of the sequential iteration
-        :param M: The solved model
-        :return: None
-        """
-        if not self.tech_sectors:
-            raise RuntimeError('tech sectors not available... code error')
-
-        # must recalculate flows from the model
-        self.flow_register = self.calculate_flows(M)
-        if isinstance(iteration, int):
-            scenario = self.config.scenario + f'-{iteration}'
-        elif iteration is None:
-            scenario = self.config.scenario
-        else:
-            raise ValueError(f'Illegal (non integer) value received for iteration: {iteration}')
-
-        # iterate through all elements of the flow register, look for output flows only,
-        # and gather the total by index (region, period, input_comm, tech, vintage, output_comm)
-        # this is summing across season, tod
-        output_flows = defaultdict(float)
-        for fi in self.flow_register:
-            sector = self.tech_sectors.get(fi.t)
-            # get the output flow for this index, if it exists...
-            flow_out_value = self.flow_register[fi].get(FlowType.OUT, None)
-            if flow_out_value:
-                idx = (scenario, fi.r, sector, fi.p, fi.i, fi.t, fi.v, fi.o)
-                output_flows[idx] += flow_out_value
-
-        # convert to entries, if the sum is non-negligible
-        entries = []
-        for idx, flow in output_flows.items():
-            if abs(flow) < self.epsilon:
-                continue
-            entry = (*idx, flow)
-            entries.append(entry)
-
-        qry = f'INSERT INTO OutputFlowOutSummary VALUES {_marks(9)}'
-        self.con.executemany(qry, entries)
 
         self.con.commit()
 
@@ -502,7 +417,7 @@ class TableWriter:
             for s in M.time_season:
                 for d in M.time_of_day:
                     fi = FI(r, p, s, d, i, t, v, o)
-                    flow = value(M.V_FlexAnnual[r, p, i, t, v, o]) * value(M.SegFrac[s, d])
+                    flow = value(M.V_FlexAnnual[fi]) * value(M.SegFrac[s, d])
                     if abs(flow) < self.epsilon:
                         continue
                     res[fi][FlowType.FLEX] = flow
@@ -556,7 +471,7 @@ class TableWriter:
         )
         return model_ic, undiscounted_cost
 
-    def write_costs(self, M: TemoaModel, emission_entries=None, iteration=None):
+    def write_costs(self, M: TemoaModel, emission_entries=None):
         """
         Gather the cost data vars
         :param emission_entries: cost dictionary for emissions
@@ -707,23 +622,11 @@ class TableWriter:
                 entries[k].update(emission_entries[k])
         # write to table
         # translate the entries into fodder for the query
-
-        if isinstance(iteration, int):
-            scenario = self.config.scenario + f'-{iteration}'
-        elif iteration is None:
-            scenario = self.config.scenario
-        else:
-            raise ValueError(f'Illegal (non integer) value received for iteration: {iteration}')
-        
-        self._write_cost_rows(entries, scenario)
-        self._write_cost_rows(exchange_costs.get_entries(), scenario)
+        self._write_cost_rows(entries)
+        self._write_cost_rows(exchange_costs.get_entries())
 
     def _gather_emission_costs_and_flows(self, M: 'TemoaModel'):
-        """Gather all emission flows and price them"""
-
-        # UPDATE:  older versions brought forward had some accounting errors here for flex/curtailed emissions
-        #          see the note on emissions in the Cost function in temoa_rules
-
+        """there are 5 'flavors' of emission costs.  So, we need to gather the base and then decide on each"""
         GDR = value(M.GlobalDiscountRate)
         MPL = M.ModelProcessLife
         if self.config.scenario_mode == TemoaMode.MYOPIC:
@@ -754,7 +657,6 @@ class TableWriter:
             flows[EI(r, p, t, v, e)] += (
                 value(M.V_FlowOut[r, p, s, d, i, t, v, o]) * M.EmissionActivity[r, e, i, t, v, o]
             )
-
         for r, p, e, i, t, v, o in annual:
             flows[EI(r, p, t, v, e)] += (
                 value(M.V_FlowOutAnnual[r, p, i, t, v, o]) * M.EmissionActivity[r, e, i, t, v, o]
@@ -794,12 +696,11 @@ class TableWriter:
         # wow, that was like pulling teeth
         return costs, flows
 
-    def _write_cost_rows(self, entries, scenario=None):
+    def _write_cost_rows(self, entries):
         """Write the entries to the OutputCost table"""
-        if scenario is None: scenario = self.config.scenario
         rows = [
             (
-                scenario,
+                self.config.scenario,
                 r,
                 p,
                 t,
@@ -820,13 +721,8 @@ class TableWriter:
         # TODO:  maybe extract this to a pure writing function...we shall see
         cur = self.con.cursor()
         qry = 'INSERT INTO OutputCost VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        try:
-            cur.executemany(qry, rows)
-            self.con.commit()
-        except:
-            import pandas as pd
-            df_cost = pd.DataFrame(rows)
-            df_cost.to_csv('cost_fail.csv')
+        cur.executemany(qry, rows)
+        self.con.commit()
 
     def write_dual_variables(self, results: SolverResults):
         """Write the dual variables to the OutputCost table"""
@@ -840,19 +736,3 @@ class TableWriter:
     def __del__(self):
         if self.con:
             self.con.close()
-
-    def make_summary_flow_table(self):
-        # make the additional output table, if needed...
-        self.execute_script(flow_summary_file_loc)
-
-    def execute_script(self, script_file: str | Path):
-        """
-        A utility to execute a sql script on the current db connection
-        :return:
-        """
-        with open(script_file, 'r') as table_script:
-            sql_commands = table_script.read()
-        logger.debug('Executing sql from file: %s ', script_file)
-
-        self.con.executescript(sql_commands)
-        self.con.commit()

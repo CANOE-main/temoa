@@ -33,6 +33,8 @@ from pathlib import Path
 from sys import stderr as SE, version_info
 from time import time
 from typing import Tuple
+import zipfile
+import os
 
 import deprecated
 from pyomo.environ import (
@@ -174,7 +176,7 @@ def build_instance(
     logger.info('Started creating model instance from data')
     instance = model.create_instance(loaded_portal, name=model_name)
     if not silent:
-        SE.write('\r[%8.2f] Instance created.\n' % (time() - hack))
+        SE.write('\r[%8.2f] Instance created.          \n' % (time() - hack))
         SE.flush()
     logger.info('Finished creating model instance from data')
 
@@ -346,7 +348,7 @@ def handle_results(instance: TemoaModel, results, options: TemoaConfig):
     # output_stream = pformat_results(instance, results, options)
     table_writer = TableWriter(config=options)
     if options.save_duals:
-        table_writer.write_results(M=instance, results=results)
+        table_writer.write_results(M=instance, results_with_duals=results)
     else:
         table_writer.write_results(M=instance)
 
@@ -357,9 +359,22 @@ def handle_results(instance: TemoaModel, results, options: TemoaConfig):
         excel_filename = options.output_path / options.scenario
         make_excel(str(options.output_database), excel_filename, temp_scenario)
 
+    # save the database as a zipfile in the output directory
+    # always have an exact copy of the database attached to the results
+    sqlite_database = options.output_database
+    zip_database = options.output_path / (options.output_database.stem + '.zip')
+    zip = zipfile.ZipFile(zip_database, "w", compression=zipfile.ZIP_DEFLATED)
+    zip.write(sqlite_database, arcname=os.path.basename(sqlite_database))
+    zip.close()
+
     if not options.silent:
         SE.write('\r[%8.2f] Results processed.\n' % (time() - hack))
         SE.flush()
+
+    try:
+        from playsound import playsound
+        playsound('data_files/notifications/NYTimes Crossword Victory Song.mp3')
+    except: pass # not exactly critical
 
     # if options.stream_output:
     #     print(output_stream.getvalue())

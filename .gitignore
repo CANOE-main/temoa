@@ -4,6 +4,8 @@ data_files/debug_logs/lp_files/*
 data_files/untracked_data/*
 .DS_Store
 *.ipynb_checkpoints
+*.sqlite
+/output_files/*
 
 # ignore the .idea folder from pycharm -- a pycharm specific config folder
 .idea/*

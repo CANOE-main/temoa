@@ -1,3 +1,8 @@
+
+NOTE:  The below README is OUTDATED but it describes the history of MM application.
+Current users should refer to the MM_README.md file in this directory for how-to and
+walk-through on the example provided in data_files!
+
 -----------------------
 Method of Morris README
 -----------------------
@@ -6,7 +11,7 @@ This README is based on the following Temoa Google Group post:
 https://groups.google.com/forum/#!topic/temoa-project/SEqlvJOpnb0
 
 
-1. Install SALib (pip install SALib). It's an open source python sensitivity analysis library. 
+1. Install SALib (pip install SALib). It's an open source python sensitivity analysis library.
 
 2. Download the attached file and put it in your "temoa-energysystem" directory. Basically what this script does, is reading the baseline values of the parameters you want to do the sensitivity analysis on (say price of a specific fuel or technology), perturbing them by -+10% and creating text files which include all the parameters and their corresponding ranges of change (0.9*baseline=lower bound, 1.1*baseline=upper bound), sending the text files to SALib to generate the sampling matrix (param_values parameter in the script), running the model with the sampling matrix as many times as needed (you can control the number of the runs changing the N in line 141), reading the objective function values and CO2 emissions from the database for each run and sending their corresponding values to SALib to do the analysis. 
 

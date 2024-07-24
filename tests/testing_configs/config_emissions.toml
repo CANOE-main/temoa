@@ -1,15 +1,13 @@
 # this config is used for testing in test_full_runs.py
-scenario = "test myopic"
-scenario_mode = "myopic"
+scenario = "test run"
+scenario_mode = "perfect_foresight"
 
-# note that myopic currently only supports input = output.  Test code will be responsible
-# for making a fresh copy (if desired) and moving it to the output folder
-input_database = "testing_outputs/myo_utopia.sqlite"
-output_database = "testing_outputs/myo_utopia.sqlite"
+input_database = "testing_outputs/emissions.sqlite"
+output_database = "testing_outputs/emissions.sqlite"
 neos = false
 
 # solver
-solver_name = "gurobi"
+solver_name = "cbc"
 
 # generate an excel file in the output_files folder
 save_excel = false
@@ -31,7 +29,8 @@ iterations = 4
 weight = "integer"   # currently supported: [integer, normalized]
 
 [myopic]
-view_depth = 2  # number of periods seen/analyzed per iteration
-step_size = 1    # number of periods to step by
+myopic_view = 2  # number of periods seen at one iteration
+
+
 
 

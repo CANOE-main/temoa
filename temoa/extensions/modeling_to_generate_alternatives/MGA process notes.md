@@ -26,7 +26,8 @@ simplex approach down on this model.
 
 #### Alternate (Current) Approach
 Focus on doing Barrier concurrently on multiple instances of the model.  Gurobi maxes
-out at 32 threads, so most server-side apps could run 4x instances at once.  This has some
+out at 32 threads, so most server-side apps could run several instances at once 
+depending on server capability and desired # of threads.  This has some
 challenges:
 - We'll need to handle multiple instances of the model at once in memory while they are 
 being solved / analyzed.  Should not be a problem on server side, even though some instances
@@ -38,4 +39,4 @@ instances and solved instances for the core program to produce / process respect
 we keep a reference to the built instance in a threadsafe manner.
 - UPDATE:  Review of the logs from TRACE HPC shows that model construction time for US_9R_TS
 is 1:55 (less than 2 mins).  Getting fancy with building instances in advance isn't worth it to
-recoup this small timeslice.
+recoup this small timeslice, so we can keep the "work queue" small and just build new when needed.

@@ -22,24 +22,6 @@ received this license file.  If not, see <http://www.gnu.org/licenses/>.
 Written by:  J. F. Hyink
 jeff@westernspark.us
 https://westernspark.us
-Created on:  4/16/24
+Created on:  6/3/24
 
 """
-import enum
-from enum import Enum
-
-
-# dev note:  few of these are currently developed.... some placeholder ideas...
-@enum.unique
-class MgaAxis(Enum):
-    TECH_CAPACITY = 1
-    TECH_CATEGORY_CAPACITY = 2
-    RANDOM_TECH_CAPACITY = 3
-    TECH_CATEGORY_ACTIVITY = 4
-    EMISSION_ACTIVITY = 5
-
-
-@enum.unique
-class MgaWeighting(Enum):
-    HULL_EXPANSION = 1
-    UNUSED_STUFF = 2

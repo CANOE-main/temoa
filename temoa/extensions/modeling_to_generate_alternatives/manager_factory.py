@@ -28,8 +28,14 @@ Created on:  4/16/24
 import sqlite3
 
 from temoa.extensions.modeling_to_generate_alternatives.mga_constants import MgaAxis, MgaWeighting
-from temoa.extensions.modeling_to_generate_alternatives.tech_activity_vectors import (
-    TechActivityVectors,
+from temoa.extensions.modeling_to_generate_alternatives.tech_activity_vector_manager import (
+    TechActivityVectorManager,
+)
+from temoa.extensions.modeling_to_generate_alternatives.tech_capacity_vector_manager import (
+    TechCapacityVectorManager,
+)
+from temoa.extensions.modeling_to_generate_alternatives.random_capacity_vector_manager import (
+    RandomCapacityVectorManager,
 )
 from temoa.extensions.modeling_to_generate_alternatives.vector_manager import VectorManager
 from temoa.temoa_model.temoa_model import TemoaModel
@@ -44,6 +50,19 @@ def get_manager(
 ) -> VectorManager:
     match axis:
         case MgaAxis.TECH_CATEGORY_ACTIVITY:
-            return TechActivityVectors(base_model=model, conn=con, **kwargs)
+            print("Running MGA using tech activity")
+            return TechActivityVectorManager(
+                base_model=model, conn=con, weighting=weighting, **kwargs
+            )
+        case MgaAxis.TECH_CATEGORY_CAPACITY:
+            print("Running MGA using tech category capacity")
+            return TechCapacityVectorManager(
+                base_model=model, conn=con, weighting=weighting, **kwargs
+            )
+        case MgaAxis.RANDOM_TECH_CAPACITY:
+            print("Running MGA using random tech capacity")
+            return RandomCapacityVectorManager(
+                base_model=model, conn=con, weighting=weighting, **kwargs
+            )
         case _:
             raise NotImplementedError('This axis is not yet supported')

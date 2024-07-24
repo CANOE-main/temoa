@@ -44,9 +44,14 @@ class Hull:
         """
         # the number of columns in the first volley of points sets the dimensions of the hull
         self.dim = points.shape[1]
-        if self.dim > points.shape[0]:
-            logger.error('Hull dimension less than points')
-            raise ValueError('Hull dimension less than points')
+        if self.dim + 1 > points.shape[0]:
+            logger.error(
+                'Insufficient points to make hull.  Should have at least hull dimensionality + 1.'
+            )
+            raise ValueError(
+                'Insufficient points to make hull.  Should have at least hull dimensionality + 1.'
+                f'  Received {points.shape[0]} points'
+            )
         logger.info(
             'Initializing Hull with points: %d and dimensions: %d', points.shape[0], points.shape[1]
         )

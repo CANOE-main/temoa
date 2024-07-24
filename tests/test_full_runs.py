@@ -56,6 +56,7 @@ def test_against_legacy_outputs(system_test_run):
     """
     This test compares tests of legacy models to captured test results
     """
+    print(system_test_run)
     data_name, res, mdl, _ = system_test_run
     logger.info('Starting output test on scenario: %s', data_name)
     expected_vals = test_vals.get(data_name)  # a dictionary of expected results

@@ -35,6 +35,7 @@ from sqlite3 import Connection
 from sys import stderr as SE
 
 import definitions
+# from temoa.data_processing.DB_to_Excel import make_excel
 from temoa.extensions.myopic.myopic_index import MyopicIndex
 from temoa.extensions.myopic.myopic_progress_mapper import MyopicProgressMapper
 from temoa.temoa_model import run_actions
@@ -275,6 +276,13 @@ class MyopicSequencer:
 
             # 11.  Compact the db...  lots of writes/deletes leads to bloat
             self.output_con.execute('VACUUM;')
+
+        # TODO:  Temporarily disabled while we sort out import issue with pyam module
+        # if self.config.save_excel:
+        #     temp_scenario = set()
+        #     temp_scenario.add(self.config.scenario)
+        #     excel_filename = self.config.output_path / self.config.scenario
+        #     make_excel(str(self.config.output_database), excel_filename, temp_scenario)
 
     def initialize_myopic_efficiency_table(self):
         """

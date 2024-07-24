@@ -1216,24 +1216,24 @@ def StorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
     # This storage formulation allows stored energy to carry over through
     # time of day and seasons, but must be zeroed out at the end of each period, i.e.,
     # the last time slice of the last season must zero out
-    """ if d == M.time_of_day.last() and s == M.time_season.last():
+    if d == M.time_of_day.last() and s == M.time_season.last():
         d_prev = M.time_of_day.prev(d)
-        expr = M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy == M.V_StorageInit[r, t, v] """
+        expr = M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy == M.V_StorageInit[r, t, v]
 
     # First time slice of the first season (i.e., start of period), starts at StorageInit level
-    """ elif d == M.time_of_day.first() and s == M.time_season.first():
-        expr = M.V_StorageLevel[r, p, s, d, t, v] == M.V_StorageInit[r, t, v] + stored_energy """
+    elif d == M.time_of_day.first() and s == M.time_season.first():
+        expr = M.V_StorageLevel[r, p, s, d, t, v] == M.V_StorageInit[r, t, v] + stored_energy
 
     # First time slice of any season that is NOT the first season
-    #elif d == M.time_of_day.first():
-    if d == M.time_of_day.first():
-        d_last = M.time_of_day.last()
-        #s_prev = M.time_season.prev(s)
-        expr = (
-            M.V_StorageLevel[r, p, s, d, t, v]
-            #== M.V_StorageLevel[r, p, s_prev, d_last, t, v] + stored_energy
-            == M.V_StorageLevel[r, p, s, d_last, t, v] + stored_energy
-        )
+    elif d == M.time_of_day.first():
+        if d == M.time_of_day.first():
+            d_last = M.time_of_day.last()
+            s_prev = M.time_season.prev(s)
+            expr = (
+                M.V_StorageLevel[r, p, s, d, t, v]
+                == M.V_StorageLevel[r, p, s_prev, d_last, t, v] + stored_energy
+                #== M.V_StorageLevel[r, p, s, d_last, t, v] + stored_energy
+            )
 
     # Any time slice that is NOT covered above (i.e., not the time slice ending
     # the period, or the first time slice of any season)

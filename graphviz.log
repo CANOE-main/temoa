@@ -1,0 +1,7 @@
+setGraphicOption: updated greyFlag = False and splinevar = False
+--------------------------------------
+GraphvizDiagramGenerator: connected
+setGraphicOption: updated greyFlag = False and splinevar = False
+createCompleteInputGraph: started with inp_tech = None and inp_comm = None
+createCompleteInputGraph: database fetched successfully
+createCompleteInputGraph: creating diagrams

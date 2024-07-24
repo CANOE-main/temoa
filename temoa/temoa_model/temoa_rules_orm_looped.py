@@ -122,6 +122,16 @@ possibility.
             for S_i in M.processInputs[r, p, t, v]
             for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
         )
+    if t in M.tech_reserve:
+        # If technologies are present in the curtailment set, then enough
+        # capacity must be available to cover both activity and curtailment.
+        return capacity * value(M.CapacityToActivity[r, t]) * value(M.SegFrac[s, d]) * value(
+            M.ProcessLifeFrac[r, p, t, v]
+        ) * M.V_Capacity[r, p, t, v] >= useful_activity + sum(
+            M.V_Curtailment[r, p, s, d, S_i, t, v, S_o]
+            for S_i in M.processInputs[r, p, t, v]
+            for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+        )
     else:
         return (
             capacity
@@ -1350,6 +1360,13 @@ is limited by the power capacity (typically GW) of the storage unit.
         for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
     )
 
+    # Calculate energy discharge in each time slice
+    slice_curtailment = sum(
+        M.V_Curtailment[r, p, s, d, S_i, t, v, S_o]
+        for S_o in M.processOutputs[r, p, t, v]
+        for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
+    )
+
     # Maximum energy discharge in each time slice
     max_discharge = (
         M.V_Capacity[r, p, t, v]
@@ -1359,7 +1376,7 @@ is limited by the power capacity (typically GW) of the storage unit.
     )
 
     # Energy discharge cannot exceed the capacity of the storage unit
-    expr = slice_discharge <= max_discharge
+    expr = slice_discharge + slice_curtailment <= max_discharge
 
     return expr
 
@@ -1367,22 +1384,25 @@ is limited by the power capacity (typically GW) of the storage unit.
 def StorageThroughput_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
     r"""
 
-It is not enough to only limit the charge and discharge rate separately. We also
-need to ensure that the maximum throughput (charge + discharge) does not exceed
-the capacity (typically GW) of the storage unit.
+    It is not enough to only limit the charge and discharge rate separately. We also
+    need to ensure that the maximum throughput (charge + discharge) does not exceed
+    the capacity (typically GW) of the storage unit.
 
-.. math::
-   :label: StorageThroughput
+    Otherwise the model may be tempted to use a battery to curtail energy on top of
+    storage purposes, beyond its power capacity.
 
-      \sum_{I, O} \textbf{FO}_{r, p, s, d, i, t, v, o}
-      +
-      \sum_{I, O} \textbf{FIS}_{r, p, s, d, i, t, v, o} \cdot EFF_{r,i,t,v,o}
-      \le
-      \textbf{CAP}_{r,t,v} \cdot C2A_{r,t} \cdot SEG_{s,d}
+    .. math::
+    :label: StorageThroughput
 
-      \\
-      \forall \{r, p, s, d, t, v\} \in \Theta_{\text{StorageThroughput}}
-"""
+        \sum_{I, O} \textbf{FO}_{r, p, s, d, i, t, v, o}
+        +
+        \sum_{I, O} \textbf{FIS}_{r, p, s, d, i, t, v, o} \cdot EFF_{r,i,t,v,o}
+        \le
+        \textbf{CAP}_{r,t,v} \cdot C2A_{r,t} \cdot SEG_{s,d}
+
+        \\
+        \forall \{r, p, s, d, t, v\} \in \Theta_{\text{StorageThroughput}}
+    """
     discharge = sum(
         M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
         for S_o in M.processOutputs[r, p, t, v]
@@ -1395,7 +1415,13 @@ the capacity (typically GW) of the storage unit.
         for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
     )
 
-    throughput = charge + discharge
+    curtailment = sum(
+        M.V_Curtailment[r, p, s, d, S_i, t, v, S_o]
+        for S_i in M.processInputs[r, p, t, v]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+    )
+
+    throughput = charge + discharge + curtailment
     max_throughput = (
         M.V_Capacity[r, p, t, v]
         * M.CapacityToActivity[r, t]
@@ -1783,56 +1809,17 @@ we write this equation for all the time-slices defined in the database in each r
     ):  # If reserve set empty or if r,p not in M.processReservePeriod.keys(), skip the constraint
         return Constraint.Skip
 
-    cap_avail = sum(
-        value(M.CapacityCredit[r, p, t, v])
-        * M.ProcessLifeFrac[r, p, t, v]
-        * M.V_Capacity[r, p, t, v]
-        * value(M.CapacityToActivity[r, t])
-        * value(M.SegFrac[s, d])
-        for t in M.tech_reserve
-        if (r, p, t) in M.processVintages.keys()
-        for v in M.processVintages[r, p, t]
-        # Make sure (r,p,t,v) combinations are defined
-        if (r, p, t, v) in M.activeCapacityAvailable_rptv
-    )
-
-    # The above code does not consider exchange techs, e.g. electricity
-    # transmission between two distinct regions.
-    # We take exchange takes into account below.
-    # Note that a single exchange tech linking regions Ri and Rj is twice
-    # defined: once for region "Ri-Rj" and once for region "Rj-Ri".
-
-    # First, determine the amount of firm capacity each exchange tech
-    # contributes.
-    for r1r2 in M.RegionalIndices:
-        if '-' not in r1r2:
-            continue
-        r1, r2 = r1r2.split('-')
-
-        # Only consider the capacity of technologies that import to
-        # the region in question -- i.e. for cases where r2 == r.
-        if r2 != r:
-            continue
-
-        # add the available capacity of the exchange tech.
-        cap_avail += sum(
-            value(M.CapacityCredit[r1r2, p, t, v])
-            * M.ProcessLifeFrac[r1r2, p, t, v]
-            * M.V_Capacity[r1r2, p, t, v]
-            * value(M.CapacityToActivity[r1r2, t])
-            * value(M.SegFrac[s, d])
-            for t in M.tech_reserve
-            if (r1r2, p, t) in M.processVintages.keys()
-            for v in M.processVintages[r1r2, p, t]
-            # Make sure (r,p,t,v) combinations are defined
-            if (r1r2, p, t, v) in M.activeCapacityAvailable_rptv
-        )
-
     # In most Temoa input databases, demand is endogenous, so we use electricity
     # generation instead as a proxy for electricity demand.
     total_generation = sum(
         M.V_FlowOut[r, p, s, d, S_i, t, S_v, S_o]
         for (t, S_v) in M.processReservePeriods[r, p]
+        for S_i in M.processInputs[r, p, t, S_v]
+        for S_o in M.ProcessOutputsByInput[r, p, t, S_v, S_i]
+    )
+    total_curtailment = sum(
+        M.V_Curtailment[r, p, s, d, S_i, t, S_v, S_o]
+        for (t,S_v) in M.processReservePeriods[r, p]
         for S_i in M.processInputs[r, p, t, S_v]
         for S_o in M.ProcessOutputsByInput[r, p, t, S_v, S_i]
     )
@@ -1849,11 +1836,11 @@ we write this equation for all the time-slices defined in the database in each r
     )
 
     # Electricity imports and exports via exchange techs are accounted
-    # for below:
+    # for below. Note that r1r2 are not in the regions table and so won't be called directly to this function
     for r1r2 in M.RegionalIndices:  # ensure the region is of the form r1-r2
         if '-' not in r1r2:
             continue
-        if (r1r2, p) not in M.processReservePeriods:  # ensure the technology in question exists
+        if (r1r2, p) not in M.processReservePeriods:  # ensure the technology in question exists in the reserve set
             continue
         r1, r2 = r1r2.split('-')
         # First, determine the exports, and subtract this value from the
@@ -1861,6 +1848,13 @@ we write this equation for all the time-slices defined in the database in each r
         if r1 == r:
             total_generation -= sum(
                 M.V_FlowOut[r1r2, p, s, d, S_i, t, S_v, S_o]
+                / value(M.Efficiency[r1r2, S_i, t, S_v, S_o])
+                for (t, S_v) in M.processReservePeriods[r1r2, p]
+                for S_i in M.processInputs[r1r2, p, t, S_v]
+                for S_o in M.ProcessOutputsByInput[r1r2, p, t, S_v, S_i]
+            )
+            total_curtailment -= sum(
+                M.V_Curtailment[r1r2, p, s, d, S_i, t, S_v, S_o]
                 / value(M.Efficiency[r1r2, S_i, t, S_v, S_o])
                 for (t, S_v) in M.processReservePeriods[r1r2, p]
                 for S_i in M.processInputs[r1r2, p, t, S_v]
@@ -1876,9 +1870,90 @@ we write this equation for all the time-slices defined in the database in each r
                 for S_o in M.ProcessOutputsByInput[r1r2, p, t, S_v, S_i]
                 if (t, S_v) in M.processReservePeriods[r1r2, p]
             )
+            total_generation += sum(
+                M.V_Curtailment[r1r2, p, s, d, S_i, t, S_v, S_o]
+                for (t, S_v) in M.processReservePeriods[r1r2, p]
+                for S_i in M.processInputs[r1r2, p, t, S_v]
+                for S_o in M.ProcessOutputsByInput[r1r2, p, t, S_v, S_i]
+                if (t, S_v) in M.processReservePeriods[r1r2, p]
+            ) 
 
-    cap_target = total_generation * (1 + value(M.PlanningReserveMargin[r]))
-    return cap_avail >= cap_target
+    return total_curtailment >= value(M.PlanningReserveMargin[r]) * total_generation
+
+
+def StorageReserve_Constraint(M, r, p, s, d, t, v):
+    """
+    This constraint ensures that a storage technology has sufficient charge to
+    satisfy its net outflow as well as any reserve capacity that has been counted
+    toward the operating reserve margin.
+    """
+
+    # This is the sum of all input=i sent TO storage tech t of vintage v with
+    # output=o in p,s,d
+    charge = sum(
+        M.V_FlowIn[r, p, s, d, S_i, t, v, S_o] * M.Efficiency[r, S_i, t, v, S_o]
+        for S_i in M.processInputs[r, p, t, v]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+    )
+
+    # This is the sum of all output=o withdrawn FROM storage tech t of vintage v
+    # with input=i in p,s,d
+    discharge = sum(
+        M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
+        for S_o in M.processOutputs[r, p, t, v]
+        for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
+    )
+
+    # This should represent what COULD have been discharged in this time slice, but wasnt
+    curtailment = sum(
+        M.V_Curtailment[r, p, s, d, S_i, t, v, S_o]
+        for S_o in M.processOutputs[r, p, t, v]
+        for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
+    )
+
+    required_energy = discharge + curtailment - charge
+
+    return M.V_StorageLevel[r, p, s, d, t, v] >= required_energy
+
+
+def MaxSeasonalActivityReserve_Constraint(M, r, p, s, d, t):
+    """
+    This constraint dictates that a generator with a seasonal max quota can
+    contribute any spare capacity to the operating reserve only if it has the
+    remaining seasonal quota to do so.
+    These generators must be in the reserve set but not the curtailment set,
+    otherwise they will be forced to withhold a full day's worth of generation for
+    the last time slice of each season.
+    """
+
+    days = list(M.time_of_day)
+    prev_days = days[:days.index(d)+1]
+
+    try:
+        activity_rpst = sum(
+            M.V_FlowOut[r, p, s, _d, S_i, t, S_v, S_o] / (M.SegFrac[s, _d]*365*24)
+            for S_v in M.processVintages[r, p, t]
+            for S_i in M.processInputs[r, p, t, S_v]
+            for S_o in M.ProcessOutputsByInput[r, p, t, S_v, S_i]
+            for _d in prev_days
+        )
+        curtailment_rpstd = sum(
+            M.V_Curtailment[r, p, s, d, S_i, t, S_v, S_o] / (M.SegFrac[s, d]*365*24)
+            for S_v in M.processVintages[r, p, t]
+            for S_i in M.processInputs[r, p, t, S_v]
+            for S_o in M.ProcessOutputsByInput[r, p, t, S_v, S_i]
+        )
+    except:
+        msg = (
+        "\nWarning: MaxSeasonalActivityReserve constraint can not be defined for "
+        "technologies in \"tech_annual\". Continuing by ignoring the constraint "
+        "for '%s'.\n "
+        )
+        SE.write(msg % (t))
+        return Constraint.Skip
+    max_act = value(M.MaxSeasonalActivity[r, p, s, t])
+    expr = activity_rpst + curtailment_rpstd <= max_act
+    return expr
 
 
 def EmissionLimit_Constraint(M: 'TemoaModel', r, p, e):

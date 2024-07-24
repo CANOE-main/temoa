@@ -612,9 +612,9 @@ def EFAlgorithmBuilder(options, scenario_tree):
             + options.solver_type
             + ' for use in extensive form solve'
         )
-    if len(options.solver_options) > 0:
-        print('Initializing ef solver with options=' + str(options.solver_options))
-        ef_solver.set_options(''.join(options.solver_options))
+    if len(options.worker_solver_options) > 0:
+        print('Initializing ef solver with options=' + str(options.worker_solver_options))
+        ef_solver.set_options(''.join(options.worker_solver_options))
     if options.mipgap is not None:
         if (options.mipgap < 0.0) or (options.mipgap > 1.0):
             raise ValueError(
