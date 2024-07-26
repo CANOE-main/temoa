@@ -938,6 +938,18 @@ def GroupShareIndices(M: 'TemoaModel'):
     return indices
 
 
+def TwoGroupShareIndices(M: 'TemoaModel'):
+    indices = set(
+        (r, p, g1, g2)
+        for g1 in M.tech_group_names
+        for g2 in M.tech_group_names
+        for r, p, _t in M.processVintages.keys()
+        if _t in M.tech_group_members[g2]
+    )
+
+    return indices
+
+
 def EmissionActivityIndices(M: 'TemoaModel'):
     indices = set(
         (r, e, i, t, v, o)

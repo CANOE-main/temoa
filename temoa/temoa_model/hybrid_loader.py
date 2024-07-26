@@ -920,6 +920,20 @@ class HybridLoader:
             ).fetchall()
             load_element(M.MaxCapacityShare, raw, self.viable_rt, (0, 2))
 
+        # MinNewCapacityGroupShare
+        if self.table_exists('MinNewCapacityGroupShare'):
+            raw = cur.execute(
+                'SELECT region, period, sub_group_name, group_name, min_proportion FROM main.MinNewCapacityGroupShare'
+            ).fetchall()
+            load_element(M.MinNewCapacityGroupShare, raw)
+
+        # MaxNewCapacityGroupShare
+        if self.table_exists('MaxNewCapacityGroupShare'):
+            raw = cur.execute(
+                'SELECT region, period, sub_group_name, group_name, max_proportion FROM main.MaxNewCapacityGroupShare'
+            ).fetchall()
+            load_element(M.MaxNewCapacityGroupShare, raw)
+
         # MinActivityGroup
         if self.table_exists('MinActivityGroup'):
             if mi:
@@ -1198,6 +1212,7 @@ class HybridLoader:
             M.MaxNewCapacity.name: M.MaxNewCapacityConstraint_rpt.name,
             M.MaxNewCapacityGroup.name: M.MaxNewCapacityGroupConstraint_rpg.name,
             M.MaxNewCapacityShare.name: M.MaxNewCapacityShareConstraint_rptg.name,
+            M.MaxNewCapacityGroupShare.name: M.MaxNewCapacityGroupShareConstraint_rpgg.name,
             M.MaxResource.name: M.MaxResourceConstraint_rt.name,
             M.MinActivity.name: M.MinActivityConstraint_rpt.name,
             M.MinSeasonalActivity.name: M.MinSeasonalActivityConstraint_rpst.name,
@@ -1210,6 +1225,7 @@ class HybridLoader:
             M.MinNewCapacity.name: M.MinNewCapacityConstraint_rpt.name,
             M.MinNewCapacityGroup.name: M.MinNewCapacityGroupConstraint_rpg.name,
             M.MinNewCapacityShare.name: M.MinNewCapacityShareConstraint_rptg.name,
+            M.MinNewCapacityGroupShare.name: M.MinNewCapacityGroupShareConstraint_rpgg.name,
             M.RenewablePortfolioStandard.name: M.RenewablePortfolioStandardConstraint_rpg.name,
             M.ResourceBound.name: M.ResourceConstraint_rpr.name,
         }
