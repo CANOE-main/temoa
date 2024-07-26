@@ -1,8 +1,4 @@
 """
-The possible operating modes for a scenario
-"""
-
-"""
 Tools for Energy Model Optimization and Analysis (Temoa):
 An open source framework for energy systems optimization modeling
 
@@ -26,6 +22,9 @@ Written by:  J. F. Hyink
 jeff@westernspark.us
 https://westernspark.us
 Created on:  11/28/23
+
+The possible operating modes for a scenario
+
 """
 
 from enum import Enum, unique
@@ -41,3 +40,4 @@ class TemoaMode(Enum):
     METHOD_OF_MORRIS = 4  # Method-of-Morris run
     BUILD_ONLY = 5  # Just build the model, no solve
     CHECK = 6  # build and run price check, source trace it
+    SVMGA = 7  # single-vector MGA

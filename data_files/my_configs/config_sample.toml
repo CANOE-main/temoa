@@ -9,7 +9,8 @@
 
 # Scenario Name (Mandatory)
 # This scenario name is used to label results within the output .sqlite file
-scenario = "zulu"
+# (cannot contain "-" dash)
+scenario = "trn_vanilla"
 
 # Scenaio Mode (Mandatory)
 # See documentation for explanations.  A standard single run is "perfect_foresight"
@@ -18,18 +19,20 @@ scenario = "zulu"
 scenario_mode = "perfect_foresight"
 
 # Input database (Mandatory)
-input_database = "data_files/example_dbs/utopia.sqlite"
+input_database = "data_files/canoe_on_12d_vanilla.sqlite"
 
 # Output file (Mandatory)
 # The output file must be an existing .sqlite file
 # For Pefrect Foresight, the user may target the same input file or a separate /
-# copied sqlite file in a different location.  Myopic requires that input_database = output_database
-output_database = "data_files/example_dbs/utopia.sqlite"
+# copied sqlite file in a different location.  Myopic, MGA require that input_database = output_database
+output_database = "data_files/canoe_on_12d_vanilla.sqlite"
 
 # ------------------------------------
 #        DATA / MODEL CHECKS
 #  To check data / cost integrity
 # ------------------------------------
+
+# See the documentation section on Data Quality for notes on the features below
 
 # Check the pricing structure for common errors, which are reported in the log file
 # Strongly recommended
@@ -55,7 +58,7 @@ neos = false
 # solver (Mandatory)
 # Depending on what client machine has installed.
 #  [cbc, appsi_highs, gurobi, cplex, ...]
-solver_name = "cbc"
+solver_name = "gurobi"
 
 # ------------------------------------
 #             OUTPUTS
@@ -77,14 +80,31 @@ save_lp_file = false
 # if the run is not executed in that mode.
 # ---------------------------------------------------
 [MGA]
-slack = 0.1
-iterations = 4
-weight = "integer"   # currently supported: [integer, normalized]
+# see notes on these in the extensions/modeling_to_generate_alternatives folder readme.txt
+cost_epsilon = 0.03    # propotional relaxation on optimal cost (ex: 0.05 = bound at 105% of original optimal cost)
+iteration_limit = 55   # max iterations to perform
+time_limit_hrs = 1     # max time
+axis = "tech_category_activity"   # use the tech activity Manager to control exploration based on categories in Tech
+weighting = "hull_expansion"  # use a convex hull expansion algorithm to weight exploration
 
 [myopic]
 view_depth = 2   # number of periods seen/analyzed per iteration
 step_size = 1    # number of periods to step by (must be <= view depth)
 
+[morris]
+perturbation = 0.10     # amount to perturb marked parameters (ex:  0.10 -> +/- 10%)
+levels = 8              # number of levels in param grid (must be even number)
+trajectories = 10        # number of Morris trajectories to generate/explore
+seed = false               # random seed for use in generation/analysis for repeatable results.  false=system derived
+cores = 0               # number of CPU cores to use.  0 (default) = cpu count
+# Note:  Problem size (in general) is (Groups + 1) * trajectories see the SALib Dox
+#        Groups = number of unique labels used in MM analysis columns in DB
 
-
+[SVMGA]
+cost_epsilon = 0.05
+# labels from appropriate tables in database.  It is recommended to only use one of the lists below and leave
+# the others blank
+emission_labels = ['co2', 'nox']
+capacity_labels = ['TXD', 'TXG']
+activity_labels = []
 

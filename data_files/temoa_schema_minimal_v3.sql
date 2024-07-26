@@ -435,7 +435,7 @@ CREATE TABLE IF NOT EXISTS OutputFlowOut
     period      INTEGER
         REFERENCES TimePeriod (period),
     season      TEXT
-        REFERENCES TimePeriod (period),
+        REFERENCES TimeSeason (season),
     tod         TEXT
         REFERENCES TimeOfDay (tod),
     input_comm  TEXT
@@ -707,5 +707,3 @@ CREATE TABLE IF NOT EXISTS OutputCost
 );
 COMMIT;
 PRAGMA FOREIGN_KEYS = 1;
-COMMIT;
-

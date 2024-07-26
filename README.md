@@ -85,31 +85,43 @@ tables by executing the full schema SQL command on the resulting database later,
 and has all parameters in it.  It can be copied/renamed, etc.
 - Notes on Config Options:
 
-Field | Notes
----|---
-Scenario Name | A name used in output tables for results
-Temoa Mode | The execution mode.  See note below on currently supported modes
-Input/Output DB | The source (and optionally diffent) output database.  Note for myopic input must be same as output
-Price Checking | Run the "price checker" on the built model to look for costing deficiencies and log them
-Source Tracing | Check the integrity of the commodity flow network in every region-period combination.  Required for Myopic
-Commodity Graphs | Produce HTML (viewable in any browser) displays of the networks built
-Solver | The exact name of the solver executable to call within `pyomo`
-Save Excel | Save core output data to excel files.  Needed if user intends to use the graphviz post-processing modules
-Save LP | Save the created LP model files
-Myopic Settings | The view depth (periods to solve per iteration) and step (periods to step between iterations)
+| Field                  | Notes                                                                                                      |
+|------------------------|------------------------------------------------------------------------------------------------------------|
+| Scenario Name          | A name used in output tables for results (cannot contain dash '-' symbol)                                  |
+| Temoa Mode             | The execution mode.  See note below on currently supported modes                                           |
+| Input/Output DB        | The source (and optionally diffent) output database.  Note for myopic, MGA input must be same as output    |
+| Price Checking         | Run the "price checker" on the built model to look for costing deficiencies and log them                   |
+| Source Tracing         | Check the integrity of the commodity flow network in every region-period combination.  Required for Myopic |
+| Plot Commodity Network | Produce HTML (viewable in any browser) displays of the networks built (see note at bottom)                 |
+| Solver                 | The exact name of the solver executable to call                                                            |
+| Save Excel             | Save core output data to excel files.  Needed if user intends to use the graphviz post-processing modules  |
+| Save LP                | Save the created LP model files                                                                            |
+| Save Duals             | Save the values of the Dual Variables in the Output Tables.  (Only supported by some solvers)              |
+| Mode Specific Settings | See the README files within mode folders for up-to-date values                                             |
 
 ## Currently Supported Modes
 ### Check
 Build the model and run the numerous checks on it.  Results will be in the log file.  No solve is attempted.
+Note:  The LP file for the model can be saved with this option and solved later/independently by selecting
+the ``save_lp_file`` option in the config.
 ### Perfect Foresight
 All-in-one run that solves the entire model at once.  It is possible to run this without source tracing, which will
 use raw data in the model without checking the integrity of the underlying network.  It is highly advised to use
 source tracing for most accurate results.
 ### Myopic
 Solve the model sequentially through iterative solves based on Myopic settings.  Source tracing is required to
-accomodate build/no-build decisions made per iteration to ensure follow-on models are well built.
+accommodate build/no-build decisions made per iteration to ensure follow-on models are well built.
+### MGA (Modeling to Generate Alternatives)
+An iterative solving process to explore near cost-optimal solutions.  See the documentation on this mode.
+### SVMGA (Single Vector MGA)
+A sequence of 2 model solves that establishes a base optimal cost, then relaxes the cost then minimizes an
+alternate unweighted objective function comprised of variables associated with labels selected in lists in the
+config file.
+### Method of Morris
+A limited sensitivity analysis of user-selected variables using a Method of Morris approach.  See the documentation
+on this mode.
 ### Build Only
-Mostly for test/troubleshooting.  This builds/returns an un-solved model
+Mostly for test/troubleshooting.  This builds/returns an un-solved model.
 
 Several other options are possible to pass to the main execution command including changing the logging level to
 `debug` or running silent (no console feedback) which may be best for server runs.  Also, redirecting the output
@@ -151,7 +163,18 @@ with the exception of skipped tests.
 
 The full Temoa documentation can be built by following the build README file in the Documentation folder.
 
+## Hot Fix for Network Plots on Windows Machines
+
+Users wishing to utilize the feature to make the html network plots of the energy network using the 
+`plot_commodity_network` option in the config file who are working on Windows Operating System may need to make a
+"hot fix" to the library code.  See note here:  https://github.com/robert-haas/gravis/issues/10
+
+The `gravis` library which nicely makes these plots appears to currently be non-maintained and a 1-line fix is
+likely needed to avoid error on Windows machines:
+1. Within the `venv` that contains project dependencies, navigate to the `gravis` folder
+2. Open the file `gravis/_internal/plotting/data_structures.py` and edit line 120 to include the encoding flag:
 
 
+    `with open(filepath, 'w', encoding='utf-8') as file_handle:`
 
 

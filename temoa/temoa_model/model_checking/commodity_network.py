@@ -98,13 +98,6 @@ class CommodityNetwork:
         # make synthetic connection between linked techs
         self.prescreen_linked_tech()
 
-        # TODO:  perhaps sockets later to account for inter-regional links, for now,
-        #  we will just look at internal connex
-        # # set of exchange techs FROM this region that supply commodity through link
-        # # {tech: set(output commodities)}
-        # self.output_sockets: dict[str, set[str]] = dict()
-        # self.input_sockets: ...
-
     def remove_tech_by_name(self, tech_name: str) -> None:
         """
         Remove a tech by name from the network
@@ -279,26 +272,32 @@ class CommodityNetwork:
 
         if self.other_orphans:
             logger.info(
-                'Source tracing revealed %d orphaned processes in region %s, period %d.  '
-                'Enable DEBUG level logging with "-d" to have them logged in this module',
+                'Source tracing revealed %d "other" (non-demand) orphaned processes in region %s, period %d.',
                 len(self.other_orphans),
                 self.region,
                 self.period,
             )
-        for orphan in sorted(self.other_orphans, key=lambda x: x[1]):
-            logger.debug(
-                'Discovered orphaned process: ' '   %s in region %s, period %d',
-                orphan,
-                self.region,
-                self.period,
-            )
-        for orphan in sorted(self.demand_orphans, key=lambda x: x[1]):
+            for orphan in sorted(self.other_orphans, key=lambda x: x[1]):
+                logger.info(
+                    'Discovered orphaned process:   %s in region %s, period %d',
+                    orphan,
+                    self.region,
+                    self.period,
+                )
+        if self.demand_orphans:
             logger.info(
-                'Orphan process on demand side may cause erroneous results: %s in region %s, period %d',
-                orphan,
+                'Source tracing revealed %d demand-side orphaned processes in region %s, period %d.',
+                len(self.demand_orphans),
                 self.region,
                 self.period,
             )
+            for orphan in sorted(self.demand_orphans, key=lambda x: x[1]):
+                logger.info(
+                    'Discovered orphaned process:   %s in region %s, period %d',
+                    orphan,
+                    self.region,
+                    self.period,
+                )
 
     def unsupported_demands(self) -> set[str]:
         """

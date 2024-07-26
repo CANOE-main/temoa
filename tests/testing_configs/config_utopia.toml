@@ -24,9 +24,11 @@ save_lp_file = false
 # if the run is not executed in that mode.
 # ---------------------------------------------------
 [MGA]
-slack = 0.1
-iterations = 4
-weight = "integer"   # currently supported: [integer, normalized]
+cost_epsilon = 0.03    # 3% relaxation on optimal cost
+iteration_limit = 15   # max iterations to perform
+time_limit_hrs = 1     # max time
+axis = "tech_category_activity"   # use the tech activity Manager to control exploration based on categories in Tech
+weighting = "hull_expansion"  # use a convex hull expansion algorithm to weight exploration
 
 [myopic]
 myopic_view = 2  # number of periods seen at one iteration

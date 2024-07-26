@@ -27,7 +27,6 @@ received this license file.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import re
-from collections import defaultdict
 from logging import getLogger
 from typing import TYPE_CHECKING
 
@@ -43,72 +42,53 @@ logger = getLogger(__name__)
 def validate_linked_tech(M: 'TemoaModel') -> bool:
     """
     A validation that for all the linked techs, they have the same lifetime in each possible vintage
+
+    The Constraint that this check supports is indexed by a set that fundamentally expands the (r, t, e)
+    index of the LinkedTech data table (where t==driver tech) to include valid vintages.
+    The implication is that there is a driven tech in the same region, of
+    the same vintage, with the same lifetime as the driver tech.  We should check that.
+
+    We can filter the index down to (r, t_driver, v, e) and then query the lifetime of the driver and driven
+    to ensure they are the same
+
     :param M:
-    :return:
+    :return: True if "OK" else False
     """
     logger.debug('Starting to validate linked techs.')
-    # gather the tech-linked_tech pairs
-    tech_pairs = {
-        (k[0], k[1], v) for (k, v) in M.LinkedTechs.items() if v in M.time_optimize
-    }  # (r, t,
-    # linked_tech) tuples
 
-    # get the lifetimes by (r, t) and v for comparison
-    lifetimes: dict[tuple, dict] = defaultdict(dict)
-    for r, t, v in M.LifetimeProcess:
-        lifetimes[r, t][v] = M.LifetimeProcess[r, t, v]
-    # compare the dictionary of v: lifetime for each pair
-    success = all(
-        (lifetimes[r, t] == lifetimes[r, linked_tech] for (r, t, linked_tech) in tech_pairs)
-    )
+    base_idx = M.LinkedEmissionsTechConstraint_rpsdtve
 
-    if success:
-        logger.debug('Successfully screened all linked techs for lifetime compatibility.')
-        return True
-    else:  # log the problems...
-        for r, t, linked_tech in tech_pairs:
-            # compare vintages (should be same)
-            tech_vintages = lifetimes.get((r, t))
-            # make sure they have vintages in LifetimeProcess
-            if not tech_vintages:
-                logger.error(
-                    'Tech %s in region %s has no valid vintages in LifetimeProcess',
-                    t,
-                    r,
-                )
-            linked_tech_vintages = lifetimes.get((r, linked_tech))
-            if not linked_tech_vintages:
-                logger.error(
-                    'Linked tech %s in region %s has no valid vintages in LifetimeProcess',
-                    t,
-                    r,
-                )
+    drivers = {(r, t, v, e) for r, p, s, d, t, v, e in base_idx}
+    for r, t_driver, v, e in drivers:
+        # get the linked tech of same region, emission
+        t_driven = M.LinkedTechs[r, t_driver, e]
 
-            # make sure they have the SAME eligible vintages
-            if tech_vintages and linked_tech_vintages:
-                vintage_disparities = lifetimes[r, t].keys() ^ lifetimes[r, linked_tech].keys()
-                if vintage_disparities:
-                    logger.error(
-                        'Tech %s and %s are linked but have differing baseline vintages:\n  %s',
-                        t,
-                        linked_tech,
-                        vintage_disparities,
-                    )
+        # check for equality in lifetimes for vintage v
+        driver_lifetime = M.LifetimeProcess[r, t_driver, v]
+        try:
+            driven_lifetime = M.LifetimeProcess[r, t_driven, v]
+        except KeyError:
+            logger.error(
+                'Linked Tech Error:  Driven tech %s does not have a vintage entry %d to match driver %s',
+                t_driven,
+                v,
+                t_driver,
+            )
+            print('Problem with Linked Tech validation:  See log file')
+            return False
+        if driven_lifetime != driver_lifetime:
+            logger.error(
+                'Linked Tech Error:  Driven tech %s has lifetime %d in vintage %d while driver tech %s has lifetime %d',
+                t_driven,
+                driven_lifetime,
+                v,
+                t_driver,
+                driver_lifetime,
+            )
+            print('Problem with Linked Tech validation:  See log file')
+            return False
 
-                # check for same lifetimes, using the base tech as a baseline
-                vintage_lifetimes = lifetimes[r, t]
-                for v in vintage_lifetimes.keys():
-                    # get the corresponding lifetime for the linked tech
-                    linked_vintage_lifetime = lifetimes.get((r, linked_tech)).get(v)
-                    if vintage_lifetimes[v] != linked_vintage_lifetime:
-                        logger.error(
-                            'Techs %s and %s do not have the same lifetime in vintage %s',
-                            t,
-                            linked_tech,
-                            v,
-                        )
-        logger.error('Temoa Exiting...')
-        return False
+    return True
 
 
 def region_check(M: 'TemoaModel', region) -> bool:
@@ -177,9 +157,9 @@ def tech_groups_set_check(M: 'TemoaModel', rg, g, t) -> bool:
 
 
 # TODO:  Several of these param checkers below are not in use because the params cannot
-# accept new values for the indexing sets that aren't in a recognized set.  Now that we are
-# making the GlobalRegionalIndices, we can probably come back and employ them instead of using
-# the buildAction approach
+#        accept new values for the indexing sets that aren't in an already-constructed set.  Now that we are
+#        making the GlobalRegionalIndices, we can probably come back and employ them instead of using
+#        the buildAction approach
 
 
 def activity_param_check(M: 'TemoaModel', val, rg, p, t) -> bool:
@@ -316,7 +296,6 @@ def check_flex_curtail(M: 'TemoaModel'):
     return True
 
 
-# M.TechInputSplit = Param(M.regions, M.time_optimize, M.commodity_physical, M.tech_all)
 def validate_tech_input_split(M: 'TemoaModel', val, r, p, c, t):
     if all(
         (

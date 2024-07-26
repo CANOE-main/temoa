@@ -35,6 +35,7 @@ from sqlite3 import Connection
 from sys import stderr as SE
 
 import definitions
+from temoa.data_processing.DB_to_Excel import make_excel
 from temoa.extensions.myopic.myopic_index import MyopicIndex
 from temoa.extensions.myopic.myopic_progress_mapper import MyopicProgressMapper
 from temoa.temoa_model import run_actions
@@ -91,34 +92,37 @@ class MyopicSequencer:
         self.debugging = False
         self.optimization_periods: list[int] | None = None
         self.instance_queue: deque[MyopicIndex] = deque()  # a LIFO queue
-        self.config = config
-        # establish a connection to the controlling db
-        # allow a "shunt" (None) here so we can test parts of this by passing a None config
-        self.output_con = self.get_connection() if isinstance(config, TemoaConfig) else None
-        self.cursor = self.output_con.cursor()
         self.progress_mapper: MyopicProgressMapper | None = None
-        self.table_writer = TableWriter(self.config)
-        # break out what is needed from the config
-        myopic_options = config.myopic_inputs
-        if not myopic_options:
-            logger.error(
-                'The myopic mode was selected, but no options were received.\n %s',
-                config.myopic_inputs,
-            )
-            raise RuntimeError('No myopic options received.  See log file.')
-        else:
-            self.view_depth: int = myopic_options.get('view_depth')
-            if not isinstance(self.view_depth, int):
-                raise ValueError(f'view_depth is not an integer {self.view_depth}')
-            self.step_size: int = myopic_options.get('step_size')
-            if not isinstance(self.step_size, int):
-                raise ValueError(f'step_size is not an integer {self.step_size}')
-            if self.step_size > self.view_depth:
-                raise ValueError(
-                    f'the Myopic step size({self.step_size}) '
-                    f'is larger than the view depth ({self.view_depth}).  '
-                    f'Check config'
+        self.config = config
+        # allow a "shunt" (None) here so we can test parts of this by passing a None config
+        if self.config:
+            self.output_con = self.get_connection()
+            self.cursor = self.output_con.cursor()
+            self.table_writer = TableWriter(self.config)
+            # break out what is needed from the config
+            myopic_options = config.myopic_inputs
+            if not myopic_options:
+                logger.error(
+                    'The myopic mode was selected, but no options were received.\n %s',
+                    config.myopic_inputs,
                 )
+                raise RuntimeError('No myopic options received.  See log file.')
+            else:
+                self.view_depth: int = myopic_options.get('view_depth')
+                if not isinstance(self.view_depth, int):
+                    raise ValueError(f'view_depth is not an integer {self.view_depth}')
+                self.step_size: int = myopic_options.get('step_size')
+                if not isinstance(self.step_size, int):
+                    raise ValueError(f'step_size is not an integer {self.step_size}')
+                if self.step_size > self.view_depth:
+                    raise ValueError(
+                        f'the Myopic step size({self.step_size}) '
+                        f'is larger than the view depth ({self.view_depth}).  '
+                        f'Check config'
+                    )
+        else:
+            # A None was passed for config and the caller is responsible for setting instance vars
+            pass
 
     def get_connection(self) -> Connection:
         """
@@ -236,7 +240,9 @@ class MyopicSequencer:
             if not self.config.silent:
                 self.progress_mapper.report(idx, 'check')
             if self.config.price_check:
-                price_checker(instance)
+                good_prices = price_checker(instance)
+                if not good_prices and not self.config.silent:
+                    print('\nWarning:  Cost anomalies discovered.  Check log file for details.')
 
             # 8.  Run the model and assess solve status
             if not self.config.silent:
@@ -275,6 +281,12 @@ class MyopicSequencer:
 
             # 11.  Compact the db...  lots of writes/deletes leads to bloat
             self.output_con.execute('VACUUM;')
+
+        if self.config.save_excel:
+            temp_scenario = set()
+            temp_scenario.add(self.config.scenario)
+            excel_filename = self.config.output_path / self.config.scenario
+            make_excel(str(self.config.output_database), excel_filename, temp_scenario)
 
     def initialize_myopic_efficiency_table(self):
         """
@@ -442,7 +454,7 @@ class MyopicSequencer:
 
         # set up the progress mapper
         self.progress_mapper = MyopicProgressMapper(future_periods)
-        if not self.config.silent:
+        if self.config and not self.config.silent:
             self.progress_mapper.draw_header()
 
         # check that we have enough periods to do myopic run

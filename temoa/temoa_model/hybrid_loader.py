@@ -1,26 +1,4 @@
 """
-A module to build/load a Data Portal for myopic run using both SQL to pull data
-and python to filter results
-"""
-
-import time
-from collections import defaultdict
-from logging import getLogger
-from sqlite3 import Connection, OperationalError
-from typing import Sequence
-
-from pyomo.core import Param, Set
-from pyomo.dataportal import DataPortal
-
-from temoa.extensions.myopic.myopic_index import MyopicIndex
-from temoa.temoa_model.model_checking import network_model_data, element_checker
-from temoa.temoa_model.model_checking.commodity_network_manager import CommodityNetworkManager
-from temoa.temoa_model.model_checking.element_checker import ViableSet
-from temoa.temoa_model.temoa_config import TemoaConfig
-from temoa.temoa_model.temoa_mode import TemoaMode
-from temoa.temoa_model.temoa_model import TemoaModel
-
-"""
 Tools for Energy Model Optimization and Analysis (Temoa):
 An open source framework for energy systems optimization modeling
 
@@ -46,7 +24,29 @@ jeff@westernspark.us
 https://westernspark.us
 Created on:  1/21/24
 
+A module to build/load a Data Portal for myopic run using both SQL to pull data
+and python to filter results
+
 """
+
+
+import sys
+import time
+from collections import defaultdict
+from logging import getLogger
+from sqlite3 import Connection, OperationalError
+from typing import Sequence
+
+from pyomo.core import Param, Set
+from pyomo.dataportal import DataPortal
+
+from temoa.extensions.myopic.myopic_index import MyopicIndex
+from temoa.temoa_model.model_checking import network_model_data, element_checker
+from temoa.temoa_model.model_checking.commodity_network_manager import CommodityNetworkManager
+from temoa.temoa_model.model_checking.element_checker import ViableSet
+from temoa.temoa_model.temoa_config import TemoaConfig
+from temoa.temoa_model.temoa_mode import TemoaMode
+from temoa.temoa_model.temoa_model import TemoaModel
 
 logger = getLogger(__name__)
 
@@ -89,10 +89,15 @@ class HybridLoader:
         self.viable_output_comms: ViableSet | None = None
         self.viable_vintages: ViableSet | None = None
         self.viable_ritvo: ViableSet | None = None
+        self.viable_rpto: ViableSet | None = None
         self.viable_rtv: ViableSet | None = None
         self.viable_rt: ViableSet | None = None
+        self.viable_rpit: ViableSet | None = None
         self.viable_rtt: ViableSet | None = None  # to support scanning LinkedTech
         self.efficiency_values: list[tuple] = []
+
+        # container for loaded data
+        self.data: dict | None = None
 
     def source_trace_only(self, make_plots: bool = False, myopic_index: MyopicIndex | None = None):
         if myopic_index and not isinstance(myopic_index, MyopicIndex):
@@ -115,7 +120,9 @@ class HybridLoader:
                 p for p in periods if myopic_index.base_year <= p <= myopic_index.last_demand_year
             }
         self.manager = CommodityNetworkManager(periods=periods, network_data=network_data)
-        self.manager.analyze_network()
+        all_regions_clean = self.manager.analyze_network()
+        if not all_regions_clean and not self.config.silent:
+            print('\nWarning:  Orphaned processes detected.  See log file for details.')
         self.manager.analyze_graphs(self.config)
 
     def _build_efficiency_dataset(
@@ -159,6 +166,8 @@ class HybridLoader:
             self.viable_ritvo = filts['ritvo']
             self.viable_rtv = filts['rtv']
             self.viable_rt = filts['rt']
+            self.viable_rpit = filts['rpit']
+            self.viable_rpto = filts['rpto']
             self.viable_techs = filts['t']
             self.viable_input_comms = filts['ic']
             self.viable_vintages = filts['v']
@@ -251,7 +260,7 @@ class HybridLoader:
             values: Sequence[tuple],
             validation: ViableSet | None = None,
             val_loc: tuple = (0,),
-        ):
+        ) -> Sequence[tuple]:
             """
             Helper to alleviate some typing!
             Expects that the values passed in are an iterable of tuples, like a standard
@@ -261,11 +270,11 @@ class HybridLoader:
             get deterministic results)
             :param validation: the set to validate the keys/set value against
             :param val_loc: tuple of the positions of r, t, v in the key for validation
-            :return: None
+            :return: a sequence of the values loaded
             """
             if len(values) == 0:
                 logger.info('table, but no (usable) values for param or set: %s', c.name)
-                return
+                return []
             if not isinstance(values[0], tuple):
                 raise ValueError('values must be an iterable of tuples')
 
@@ -285,12 +294,13 @@ class HybridLoader:
                 case Set():
                     if not screened:  # no available values
                         data[c.name] = []
-                    if len(screened[0]) == 1:  # set of individual values
+                    elif len(screened[0]) == 1:  # set of individual values
                         data[c.name] = [t[0] for t in screened]
                     else:  # set of tuples, pass directly...
                         data[c.name] = screened
                 case Param():
                     data[c.name] = {t[:-1]: t[-1] for t in screened}
+            return screened
 
         def load_indexed_set(indexed_set: Set, index_value, element, element_validator):
             """
@@ -361,7 +371,9 @@ class HybridLoader:
         raw = cur.execute('SELECT region FROM main.Region').fetchall()
         load_element(M.regions, raw)
 
-        # region-groups  (these are the R1+R2, R1+R4+R6 type region labels)
+        # region-groups  (these are the R1+R2, R1+R4+R6 type region labels) AND regular region names
+        # currently, we just load all the indices from the tables that could employ them.
+        # the validator is used to ensure they are legit.  (see temoa_model)
         regions_and_groups = set()
         for table, field_name in tables_with_regional_groups.items():
             if self.table_exists(table):
@@ -369,13 +381,12 @@ class HybridLoader:
                 regions_and_groups.update({t[0] for t in raw})
                 if None in regions_and_groups:
                     raise ValueError('Table %s appears to have an empty entry for region.' % table)
-        # filter to those that contain "+" and sort (for deterministic pyomo behavior)
-        # TODO:  RN, this set contains all regular regions, interconnects, AND groups, so we don't filter ... yet
-        list_of_groups = sorted((t,) for t in regions_and_groups)  # if "+" in t or t=='global')
+        # sort (for deterministic pyomo behavior)
+        list_of_groups = sorted((t,) for t in regions_and_groups)
         load_element(M.RegionalGlobalIndices, list_of_groups)
 
         # region-exchanges
-        # TODO:  Perhaps tease the exchanges out of the efficiency table...?  RN, they are all auto-generated.
+        # auto-generated
 
         #  === TECH SETS ===
 
@@ -485,14 +496,7 @@ class HybridLoader:
         #  === PARAMS ===
 
         # Efficiency
-        # if mi:
-        #     # use what we have already computed
-        #     raw = self.efficiency_values
-        # else:
-        #     raw = cur.execute(
-        #         'SELECT region, input_comm, tech, vintage, output_comm, efficiency '
-        #         'FROM main.Efficiency',
-        #     ).fetchall()
+
         # we have already computed/filtered this... no need for another data pull
         raw = self.efficiency_values
         load_element(M.Efficiency, raw)
@@ -555,7 +559,7 @@ class HybridLoader:
         load_element(M.Demand, raw)
 
         # RescourceBound
-        # TODO:  later, it isn't used RN anyhow.
+        # Not currently implemented
 
         # CapacityToActivity
         raw = cur.execute('SELECT region, tech, c2a FROM main.CapacityToActivity ').fetchall()
@@ -598,7 +602,24 @@ class HybridLoader:
             raw = cur.execute(
                 'SELECT region, period, input_comm, tech, min_proportion FROM main.TechInputSplit '
             ).fetchall()
-        load_element(M.TechInputSplit, raw, self.viable_rt, (0, 3))
+        loaded = load_element(M.TechInputSplit, raw, self.viable_rpit, (0, 1, 2, 3))
+        # we need to see if anything was filtered out here and raise warning if so as it may have invalidated
+        # a blending process and any missing items should be reviewed
+        if len(loaded) < len(raw):
+            missing = set(raw) - set(loaded)
+            for item in sorted(missing, key=lambda x: (x[0], x[1], x[3], x[2])):
+                region, period, ic, tech, _ = item
+                logger.warning(
+                    'Technology Input Split requirement in region %s, period %d for tech %s with input'
+                    'commodity %s has '
+                    'been removed because the tech path with that input is '
+                    'invalid/not available/orphan.  See the other warnings for this TECH in '
+                    'this region-period, and check for availability of all components in data.',
+                    region,
+                    period,
+                    tech,
+                    ic,
+                )
 
         # TechInputSplitAverage
         if self.table_exists('TechInputSplitAverage'):
@@ -614,8 +635,24 @@ class HybridLoader:
                     'SELECT region, period, input_comm, tech, min_proportion '
                     'FROM main.TechInputSplitAverage '
                 ).fetchall()
-            load_element(M.TechInputSplitAverage, raw, self.viable_rt, (0, 3))
-
+            loaded = load_element(M.TechInputSplitAverage, raw, self.viable_rpit, (0, 1, 2, 3))
+            # we need to see if anything was filtered out here and raise warning if so as it may have invalidated
+            # a blending process and any missing items should be reviewed
+            if len(loaded) < len(raw):
+                missing = set(raw) - set(loaded)
+                for item in sorted(missing, key=lambda x: (x[0], x[1], x[3], x[2])):
+                    region, period, ic, tech, _ = item
+                    logger.warning(
+                        'Technology Input Split requirement in region %s, period %d for tech %s with input'
+                        'commodity %s has '
+                        'been removed because the tech path with that input is '
+                        'invalid/not available/orphan.  See the other warnings for this TECH in '
+                        'this region-period, and check for availability of all components in data.',
+                        region,
+                        period,
+                        tech,
+                        ic,
+                    )
         # TechOutputSplit
         if self.table_exists('TechOutputSplit'):
             if mi:
@@ -628,7 +665,23 @@ class HybridLoader:
                 raw = cur.execute(
                     'SELECT region, period, tech, output_comm, min_proportion FROM main.TechOutputSplit '
                 ).fetchall()
-            load_element(M.TechOutputSplit, raw, self.viable_rt, (0, 2))
+            loaded = load_element(M.TechOutputSplit, raw, self.viable_rpto, (0, 1, 2, 3))
+            # raise warning regarding any deletions here...  similar to input split above
+            if len(loaded) < len(raw):
+                missing = set(raw) - set(loaded)
+                for item in sorted(missing):
+                    region, period, tech, oc, _ = item
+                    logger.warning(
+                        'Technology Output Split requirement in region %s, period %d for tech %s with output'
+                        'commodity %s has '
+                        'been removed because the tech path with that input is '
+                        'invalid/not available/orphan.  See the other warnings for this TECH in '
+                        'this region-period, and check for availability of all components in data.',
+                        region,
+                        period,
+                        tech,
+                        oc,
+                    )
 
         # RenewablePortfolioStandard
         if self.table_exists('RPSRequirement'):
@@ -1032,7 +1085,25 @@ class HybridLoader:
             raw = cur.execute(
                 'SELECT primary_region, primary_tech, emis_comm, driven_tech FROM main.LinkedTech'
             ).fetchall()
-            load_element(M.LinkedTechs, raw, self.viable_rtt, (0, 1, 3))
+            loaded = load_element(M.LinkedTechs, raw, self.viable_rtt, (0, 1, 3))
+            # The below is a second check (belt and suspenders) and shouldn't really be needed, but it is
+            # preserved for now.
+            # we are checking that for each of the rejected LinkedTechs that each of the individual
+            # techs are also to be rejected (not members of valid_tech) ... if not ODD behavior
+            # could occur if the linkage is NOT established and the techs operate independently!
+            if len(loaded) < len(raw):
+                missing = set(raw) - set(loaded)
+                valid_techs = self.viable_techs.members
+                for item in missing:
+                    t1 = item[1]
+                    t2 = item[3]
+                    if t1 in valid_techs or t2 in valid_techs:
+                        # this is a PROBLEM.  The commodity network should have removed both the
+                        # driver and driven techs from the valid tech set, and they should not be in
+                        # the valid tech set lest they be allowed in the model independently.
+                        logger.error('Linked Tech item %s is not valid.  Check data', item)
+                        print('problem loading linked tech.  See log file')
+                        sys.exit(-1)
 
         # RampUp
         if self.table_exists('RampUp'):
@@ -1069,16 +1140,25 @@ class HybridLoader:
             load_element(M.StorageDuration, raw, self.viable_rt, (0, 1))
 
         # StorageInit
-        # TODO:  DB table is busted / removed now... defer!
+        # Not currently supported -- odd behavior and not region-indexed
+        if self.table_exists('StorageInit'):
+            raw = cur.execute('SELECT * FROM main.StorageInit').fetchall()
+            if len(raw) > 0:
+                logger.warning(
+                    'Initialization of storage values currently NOT supported.'
+                    '  Values in StorageInit table will be ignored, and storage init value'
+                    ' will be optimized.'
+                )
 
         # For T/S:  dump the size of all data elements into the log
-        # temp = '\n'.join((f'{k} : {len(v)}' for k, v in data.items()))
-        # logger.info(temp)
+        if self.debugging:
+            temp = '\n'.join((f'{k} : {len(v)}' for k, v in data.items()))
+            logger.info(temp)
 
         # capture the parameter indexing sets
         set_data = self.load_param_idx_sets(data=data)
         data.update(set_data)
-
+        self.data = data
         # pyomo namespace format has data[namespace][idx]=value
         # the default namespace is None, thus...
         namespace = {None: data}

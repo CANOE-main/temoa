@@ -87,8 +87,8 @@ def CommodityBalanceConstraintErrorCheck(vflow_out, vflow_in, r, p, s, d, c):
 
 
 def CommodityBalanceConstraintErrorCheckAnnual(vflow_out, vflow_in, r, p, c):
-    # TODO:  This needs a deep-dive.  Not clear what this is intended to do or significance of
-    #  'int' type
+    # note:  if a pyomo equation simplifies to an int, there are no variables in it, which
+    #        is an indicator of a problem
     if isinstance(vflow_out, int):
         flow_in_expr = StringIO()
         vflow_in.pprint(ostream=flow_in_expr)
@@ -108,8 +108,9 @@ def CommodityBalanceConstraintErrorCheckAnnual(vflow_out, vflow_in, r, p, c):
 
 
 def DemandConstraintErrorCheck(supply, r, p, s, d, dem):
-    # TODO:  Same:  This needs a deep-dive.  Unclear why we are triggering on int
-    if int is type(supply):
+    # note:  if a pyomo equation simplifies to an int, there are no variables in it, which
+    #        is an indicator of a problem
+    if isinstance(supply, int):
         msg = (
             "Error: Demand '{}' for ({}, {}, {}) unable to be met by any "
             'technology.\n\tPossible reasons:\n'
@@ -203,7 +204,8 @@ def CheckEfficiencyIndices(M: 'TemoaModel'):
     """
     Ensure that there are no unused items in any of the Efficiency index sets.
     """
-    # TODO:  This probably needs more resolution and a check by REGION and PERIOD...
+    # TODO:  This could be upgraded to scan for finer resolution
+    #        by checking by REGION and PERIOD...  Each region/period is unique.
     c_physical = set(i for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     techs = set(t for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     c_outputs = set(o for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
@@ -432,7 +434,7 @@ def CreateDemands(M: 'TemoaModel'):
             if DSD_dem_getter(k) == dem and DSD_region_getter(k) == r
         ]
         if len(keys) != expected_key_length:
-            logger.warning(
+            logger.debug(
                 'Missing some keys in this set for creation of Demand Distribution %s: %s',
                 dem,
                 keys,
@@ -448,7 +450,6 @@ def CreateDemands(M: 'TemoaModel'):
                 for k in DSD.sparse_iterkeys()
                 if DSD_dem_getter(k) == dem and DSD_region_getter(k) == r
             ]
-            # TODO:  This could be a little cleaner, the getting of the max length for spacing...
             key_padding = max(map(get_str_padding, keys))
 
             fmt = '%%-%ds = %%s' % key_padding
@@ -583,7 +584,6 @@ def CreateSparseDicts(M: 'TemoaModel'):
         l_process = (r, t, v)
         l_lifetime = value(M.LifetimeProcess[l_process])
         # Do some error checking for the user.
-        # TODO:  Marker for the section that is culling out vintages that are in time_exist, but with no capacity...
         if v in M.vintage_exist:
             if l_process not in l_exist_indices and t not in M.tech_uncap:
                 msg = (
@@ -703,8 +703,6 @@ def CreateSparseDicts(M: 'TemoaModel'):
                 M.ProcessByPeriodAndOutput[r, p, o] = set()
             if t in M.tech_reserve and (r, p) not in M.processReservePeriods:
                 M.processReservePeriods[r, p] = set()
-            # TODO:  This construct is goofy.  Using regex to split a string.  Perhaps consider a
-            #  SQL query to a table that has exchange members by tech (future growth?)
 
             # since t is in M.tech_exchange, r here has *-* format (e.g. 'US-Mexico').  # r[
             # :r.find("-")] extracts the region index before the "-".
@@ -862,7 +860,6 @@ def CreateSparseDicts(M: 'TemoaModel'):
         if t not in M.tech_uncap
     )
 
-    # TODO:  Look into combining this set, it MAY be same as CapacityByPeriodAndTech index
     M.activeCapacityAvailable_rptv = set(
         (r, p, t, v)
         for r, p, t in M.processVintages.keys()
@@ -1000,8 +997,6 @@ CostInvest parameter.
 
 
 def CapacityVariableIndices(M: 'TemoaModel'):
-    # TODO:  verify that this is all possible (r, t, v) combos and maybe relabel this for general use
-    #        such as verifying the lifetime and capacity params
     return M.activeCapacity_rtv
 
 

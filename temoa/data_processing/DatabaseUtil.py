@@ -43,31 +43,31 @@ class DatabaseUtil(object):
         if self.cur is not None:
             raise ValueError('Invalid Operation For Database file')
         if inp_comm is None and inp_tech is None:
-            inp_comm = '\w+'
-            inp_tech = '\w+'
+            inp_comm = r'\w+'
+            inp_tech = r'\w+'
         else:
             if inp_comm is None:
-                inp_comm = '\W+'
+                inp_comm = r'\W+'
             if inp_tech is None:
-                inp_tech = '\W+'
+                inp_tech = r'\W+'
 
         test2 = []
         eff_flag = False
         with open(self.database) as f:
             for line in f:
                 if eff_flag is False and re.search(
-                    '^\s*param\s+efficiency\s*[:][=]', line, flags=re.I
+                    r'^\s*param\s+efficiency\s*[:][=]', line, flags=re.I
                 ):
                     # Search for the line param Efficiency := (The script recognizes the commodities specified in this section)
                     eff_flag = True
                 elif eff_flag:
-                    line = re.sub('[#].*$', ' ', line)
-                    if re.search('^\s*;\s*$', line):
+                    line = re.sub(r'[#].*$', ' ', line)
+                    if re.search(r'^\s*;\s*$', line):
                         break  #  Finish searching this section when encounter a ';'
-                    if re.search('^\s+$', line):
+                    if re.search(r'^\s+$', line):
                         continue
-                    line = re.sub('^\s+|\s+$', '', line)
-                    row = re.split('\s+', line)
+                    line = re.sub(r'^\s+|\s+$', '', line)
+                    row = re.split(r'\s+', line)
                     if (
                         not re.search(inp_comm, row[0])
                         and not re.search(inp_comm, row[3])

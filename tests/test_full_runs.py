@@ -34,7 +34,7 @@ import pytest
 from pyomo.core import Constraint, Var
 
 # from src.temoa_model.temoa_model import temoa_create_model
-from tests.legacy_test_values import TestVals, test_vals
+from tests.legacy_test_values import ExpectedVals, test_vals
 
 logger = logging.getLogger(__name__)
 # list of test scenarios for which we have captured results in legacy_test_values.py
@@ -63,19 +63,19 @@ def test_against_legacy_outputs(system_test_run):
     # inspect some summary results
     assert res['Solution'][0]['Status'] == 'optimal'
     assert res['Solution'][0]['Objective']['TotalCost']['Value'] == pytest.approx(
-        expected_vals[TestVals.OBJ_VALUE], 0.00001
+        expected_vals[ExpectedVals.OBJ_VALUE], 0.00001
     )
 
     # inspect a couple set sizes
     efficiency_param: pyo.Param = mdl.Efficiency
     # check the set membership
     assert (
-        len(tuple(efficiency_param.sparse_iterkeys())) == expected_vals[TestVals.EFF_INDEX_SIZE]
+        len(tuple(efficiency_param.sparse_iterkeys())) == expected_vals[ExpectedVals.EFF_INDEX_SIZE]
     ), 'should match legacy numbers'
 
     # check the size of the domain.  NOTE:  The build of the domain here may be "expensive" for large models
     assert (
-        len(efficiency_param.index_set().domain) == expected_vals[TestVals.EFF_DOMAIN_SIZE]
+        len(efficiency_param.index_set().domain) == expected_vals[ExpectedVals.EFF_DOMAIN_SIZE]
     ), 'should match legacy numbers'
 
     # inspect the total variable and constraint counts
@@ -88,8 +88,8 @@ def test_against_legacy_outputs(system_test_run):
         v_count += len(var)
 
     # check the count of constraints & variables
-    assert c_count == expected_vals[TestVals.CONSTR_COUNT], 'should have this many constraints'
-    assert v_count == expected_vals[TestVals.VAR_COUNT], 'should have this many variables'
+    assert c_count == expected_vals[ExpectedVals.CONSTR_COUNT], 'should have this many constraints'
+    assert v_count == expected_vals[ExpectedVals.VAR_COUNT], 'should have this many variables'
 
 
 @pytest.mark.parametrize(
@@ -110,5 +110,3 @@ def test_myopic_utopia(system_test_run):
     invest_sum = res[0]
     assert invest_sum == pytest.approx(11564.3985), 'sum of investment costs did not match expected'
     con.close()
-
-    # TODO:  add additional tests for myopic that have retirement eligible things in them

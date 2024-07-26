@@ -73,16 +73,20 @@ class TemoaModel(AbstractModel):
         M.processLoans = dict()
         M.activeFlow_rpsditvo = None
         """a flow index for techs NOT in tech_annual"""
+
         M.activeFlow_rpitvo = None
         """a flow index for techs in tech_annual only"""
+
         M.activeFlex_rpsditvo = None
         M.activeFlex_rpitvo = None
         M.activeFlowInStorage_rpsditvo = None
         M.activeCurtailment_rpsditvo = None
         M.activeActivity_rptv = None
         """currently available (within lifespan) (r, p, t, v) tuples (from M.processVintages)"""
+
         M.activeRegionsForTech = None
         """currently available regions by period and tech {(p, t) : r}"""
+
         M.activeCapacity_rtv = None
         M.activeCapacityAvailable_rpt = None
         M.activeCapacityAvailable_rptv = None
@@ -94,6 +98,7 @@ class TemoaModel(AbstractModel):
         M.processReservePeriods = dict()
         M.processVintages = dict()
         """current available (within lifespan) vintages {(r, p, t) : set(v)}"""
+
         M.baseloadVintages = dict()
         M.curtailmentVintages = dict()
         M.storageVintages = dict()
@@ -150,16 +155,18 @@ class TemoaModel(AbstractModel):
         # ensure there is no overlap flex <=> curtailable technologies
         M.check_flex_and_curtailment = BuildAction(rule=check_flex_curtail)
         M.tech_exchange = Set(within=M.tech_all)
-        # Define groups for technologies
 
+        # Define groups for technologies
         M.tech_group_names = Set()
         M.tech_group_members = Set(M.tech_group_names, within=M.tech_all)
 
         M.tech_uncap = Set(within=M.tech_all - M.tech_reserve)
         """techs with unlimited capacity, ALWAYS available within lifespan"""
+
         # the below is a convenience for domain checking in params below that should not accept uncap techs...
         M.tech_with_capacity = Set(initialize=M.tech_all - M.tech_uncap)
         """techs eligible for capacitization"""
+
         # Define techs for use with TechInputSplitAverage constraint,
         # where techs have variable annual output but the user wishes to constrain them annually
         M.tech_variable = Set(within=M.tech_all)
@@ -226,9 +233,9 @@ class TemoaModel(AbstractModel):
         M.Demand = Param(M.regions, M.time_optimize, M.commodity_demand)
         M.initialize_Demands = BuildAction(rule=CreateDemands)
 
-        # TODO:  Revive this with the DB schema and refactor the associated constraint
         M.ResourceConstraint_rpr = Set(within=M.regions * M.time_optimize * M.commodity_physical)
 
+        # Dev Note:  This parameter is currently NOT implemented.  Preserved for later refactoring
         M.ResourceBound = Param(M.ResourceConstraint_rpr)
 
         # Define technology performance parameters
@@ -236,7 +243,8 @@ class TemoaModel(AbstractModel):
 
         M.ExistingCapacity = Param(M.RegionalIndices, M.tech_with_capacity, M.vintage_exist)
 
-        # temporarily useful for passing down to validator to find set violations
+        # Dev Note:  The below is temporarily useful for passing down to validator to find set violations
+        #            Uncomment this assignment, and comment out the orig below it...
         # M.Efficiency = Param(
         #     Any, Any, Any, Any, Any,
         #     within=NonNegativeReals, validate=validate_Efficiency
@@ -352,9 +360,7 @@ class TemoaModel(AbstractModel):
 
         M.MaxResourceConstraint_rt = Set(within=M.RegionalIndices * M.tech_all)
         M.MaxResource = Param(M.MaxResourceConstraint_rt)
-        # TODO:  Both of the below sets are obsolete and can be removed w/ tests updated
-        # M.MinCapacitySum = Param(M.time_optimize)  # for techs in tech_capacity
-        # M.MaxCapacitySum = Param(M.time_optimize)  # for techs in tech_capacity
+
         M.MaxActivityConstraint_rpt = Set(
             within=M.RegionalGlobalIndices * M.time_optimize * M.tech_all
         )
@@ -444,7 +450,6 @@ class TemoaModel(AbstractModel):
         M.MaxNewCapacityShareConstraint_rptg = Set(within=M.GroupShareIndices)
         M.MaxNewCapacityShare = Param(M.GroupShareIndices)
         M.LinkedTechs = Param(M.RegionalIndices, M.tech_all, M.commodity_emissions, within=Any)
-        M.validate_LinkedTech_lifetimes = BuildCheck(rule=validate_linked_tech)
 
         # Define parameters associated with electric sector operation
         M.RampUp = Param(M.regions, M.tech_ramping)
@@ -814,6 +819,9 @@ class TemoaModel(AbstractModel):
         M.LinkedEmissionsTechConstraint_rpsdtve = Set(
             dimen=7, initialize=LinkedTechConstraintIndices
         )
+        # the validation requires that the set above be built first:
+        M.validate_LinkedTech_lifetimes = BuildCheck(rule=validate_linked_tech)
+
         M.LinkedEmissionsTechConstraint = Constraint(
             M.LinkedEmissionsTechConstraint_rpsdtve, rule=LinkedEmissionsTech_Constraint
         )

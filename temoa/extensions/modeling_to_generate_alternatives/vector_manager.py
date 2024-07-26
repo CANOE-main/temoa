@@ -24,13 +24,11 @@ jeff@westernspark.us
 https://westernspark.us
 Created on:  4/15/24
 
+An ABC to serve as a framework for future Vector Managers
 """
 import sqlite3
 from abc import ABC, abstractmethod
 from collections.abc import Iterator, Iterable
-
-import numpy as np
-from pyomo.environ import Expression, Var, quicksum
 
 from temoa.temoa_model.temoa_model import TemoaModel
 
@@ -56,37 +54,42 @@ class VectorManager(ABC):
     @property
     @abstractmethod
     def groups(self) -> Iterable[str]:
-        """The main groups of the axis"""
+        """The main group labels of the axis"""
         raise NotImplementedError()
 
+    @abstractmethod
     def group_members(self, group) -> list[str]:
-        """The members in the group"""
+        """The members (by string name) in the group"""
         raise NotImplementedError()
 
-    def group_variables(self, tech) -> list[Var]:
-        """The variables associated with the individual group members"""
-        raise NotImplementedError()
+    @property
+    @abstractmethod
+    def expired(self) -> bool:
+        """
+        Indicator that this manager has no more vectors to generate
+        :return: True if expired
+        """
 
-    def random_input_vector(self) -> Expression:
-        """Random vector with proper dimensionality"""
-        var_vec = self.var_vector()
-        coeffs = np.random.random(len(var_vec))
-        coeffs /= sum(coeffs)
-        return quicksum(c * v for c, v in zip(coeffs, var_vec))
-
-    def load_normals(self, normals: np.array):
+    @abstractmethod
+    def group_variable_names(self, tech) -> list[str]:
+        """The variable NAMES associated with the individual group members"""
         raise NotImplementedError()
 
     @abstractmethod
-    def stop_resolving(self) -> bool:
-        """Query to stop re-solve loop.  True => stop re-solving."""
-        raise NotImplementedError('the manager subclass must implement stop_resolving')
+    def random_input_vector_model(self) -> TemoaModel:
+        """Random model vector for use as"""
+        raise NotImplementedError()
 
     @abstractmethod
-    def instance_generator(self) -> Iterator[TemoaModel]:
+    def model_generator(self) -> Iterator[TemoaModel]:
         """generator for model instances to be solved"""
         raise NotImplementedError('the manager subclass must implement instance_generator')
 
     @abstractmethod
     def process_results(self, M: TemoaModel):
         raise NotImplementedError('the manager subclass must implement process_results')
+
+    @abstractmethod
+    def finalize_tracker(self):
+        """Finalize any tracker employed by the manager"""
+        pass

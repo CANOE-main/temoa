@@ -10,6 +10,7 @@ from pathlib import Path
 
 from deprecated import deprecated
 
+import definitions
 from definitions import PROJECT_ROOT
 from temoa.temoa_model.temoa_model import TemoaModel
 from temoa.temoa_model.temoa_sequencer import TemoaMode, TemoaSequencer
@@ -124,6 +125,7 @@ def parse_args(arg_list: list[str] | None) -> argparse.Namespace:
         output_path = create_output_folder()
     # capture it in options
     options.output_path = output_path
+    definitions.set_OUTPUT_PATH(options.output_path)
 
     # initialize the logging now that option & path are known...
     setup_logging(output_path=output_path, debug_level=options.debug)
@@ -180,4 +182,4 @@ def setup_logging(output_path: Path, debug_level=False):
 
 
 if __name__ == '__main__':
-    runModel()
+    options = runModel()
