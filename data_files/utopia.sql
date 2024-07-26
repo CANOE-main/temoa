@@ -422,50 +422,27 @@ INSERT INTO Demand VALUES('utopia',2010,'TX',11.68999999999999951,'','');
 CREATE TABLE DemandSpecificDistribution
 (
     region      TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
     season      TEXT
         REFERENCES TimeSeason (season),
     tod         TEXT
         REFERENCES TimeOfDay (tod),
     demand_name TEXT
         REFERENCES Commodity (name),
-    dsd         REAL,
-    dsd_notes   TEXT,
-    PRIMARY KEY (region, period, season, tod, demand_name),
-    CHECK (dsd >= 0 AND dsd <= 1)
+    dds         REAL,
+    dds_notes   TEXT,
+    PRIMARY KEY (region, season, tod, demand_name),
+    CHECK (dds >= 0 AND dds <= 1)
 );
-INSERT INTO DemandSpecificDistribution VALUES('utopia',1990,'inter','day','RH',0.1199999999999999956,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',1990,'inter','night','RH',0.05999999999999999778,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',1990,'winter','day','RH',0.5466999999999999638,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',1990,'winter','night','RH',0.2732999999999999874,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',1990,'inter','day','RL',0.1499999999999999945,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',1990,'inter','night','RL',0.05000000000000000277,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',1990,'summer','day','RL',0.1499999999999999945,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',1990,'summer','night','RL',0.05000000000000000277,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',1990,'winter','day','RL',0.5,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',1990,'winter','night','RL',0.1000000000000000055,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2000,'inter','day','RH',0.1199999999999999956,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2000,'inter','night','RH',0.05999999999999999778,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2000,'winter','day','RH',0.5466999999999999638,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2000,'winter','night','RH',0.2732999999999999874,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2000,'inter','day','RL',0.1499999999999999945,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2000,'inter','night','RL',0.05000000000000000277,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2000,'summer','day','RL',0.1499999999999999945,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2000,'summer','night','RL',0.05000000000000000277,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2000,'winter','day','RL',0.5,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2000,'winter','night','RL',0.1000000000000000055,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2010,'inter','day','RH',0.1199999999999999956,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2010,'inter','night','RH',0.05999999999999999778,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2010,'winter','day','RH',0.5466999999999999638,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2010,'winter','night','RH',0.2732999999999999874,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2010,'inter','day','RL',0.1499999999999999945,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2010,'inter','night','RL',0.05000000000000000277,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2010,'summer','day','RL',0.1499999999999999945,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2010,'summer','night','RL',0.05000000000000000277,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2010,'winter','day','RL',0.5,'');
-INSERT INTO DemandSpecificDistribution VALUES('utopia',2010,'winter','night','RL',0.1000000000000000055,'');
-
+INSERT INTO DemandSpecificDistribution VALUES('utopia','inter','day','RH',0.1199999999999999956,'');
+INSERT INTO DemandSpecificDistribution VALUES('utopia','inter','night','RH',0.05999999999999999778,'');
+INSERT INTO DemandSpecificDistribution VALUES('utopia','winter','day','RH',0.5466999999999999638,'');
+INSERT INTO DemandSpecificDistribution VALUES('utopia','winter','night','RH',0.2732999999999999874,'');
+INSERT INTO DemandSpecificDistribution VALUES('utopia','inter','day','RL',0.1499999999999999945,'');
+INSERT INTO DemandSpecificDistribution VALUES('utopia','inter','night','RL',0.05000000000000000277,'');
+INSERT INTO DemandSpecificDistribution VALUES('utopia','summer','day','RL',0.1499999999999999945,'');
+INSERT INTO DemandSpecificDistribution VALUES('utopia','summer','night','RL',0.05000000000000000277,'');
+INSERT INTO DemandSpecificDistribution VALUES('utopia','winter','day','RL',0.5,'');
+INSERT INTO DemandSpecificDistribution VALUES('utopia','winter','night','RL',0.1000000000000000055,'');
 CREATE TABLE LoanRate
 (
     region  TEXT,
@@ -1144,19 +1121,6 @@ CREATE TABLE MaxNewCapacityGroup
     notes       TEXT,
     PRIMARY KEY (region, period, group_name)
 );
-CREATE TABLE MaxNewCapacityGroupShare
-(
-    region         TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
-    group_1_name     TEXT
-        REFERENCES TechGroup (group_name),
-    group_2_name     TEXT
-        REFERENCES TechGroup (group_name),
-    max_proportion REAL,
-    notes          TEXT,
-    PRIMARY KEY (region, period, group_1_name, group_2_name)
-);
 CREATE TABLE MaxNewCapacityShare
 (
     region         TEXT,
@@ -1234,19 +1198,6 @@ CREATE TABLE MinNewCapacityGroup
     units       TEXT,
     notes       TEXT,
     PRIMARY KEY (region, period, group_name)
-);
-CREATE TABLE MinNewCapacityGroupShare
-(
-    region         TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
-    group_1_name     TEXT
-        REFERENCES TechGroup (group_name),
-    group_2_name     TEXT
-        REFERENCES TechGroup (group_name),
-    min_proportion REAL,
-    notes          TEXT,
-    PRIMARY KEY (region, period, group_1_name, group_2_name)
 );
 CREATE TABLE MinNewCapacityShare
 (
@@ -1355,21 +1306,21 @@ INSERT INTO Technology VALUES('IMPDSL1','r','supply','petroleum','',1,0,0,0,0,0,
 INSERT INTO Technology VALUES('IMPGSL1','r','supply','petroleum','',1,0,0,0,0,0,0,0,' imported gasoline');
 INSERT INTO Technology VALUES('IMPHCO1','r','supply','coal','',1,0,0,0,0,0,0,0,' imported coal');
 INSERT INTO Technology VALUES('IMPOIL1','r','supply','petroleum','',1,0,0,0,0,0,0,0,' imported crude oil');
-INSERT INTO Technology VALUES('IMPURN1','r','supply','uranium','',1,0,0,0,0,0,0,0,' imported uranium');
-INSERT INTO Technology VALUES('IMPFEQ','r','supply','','',1,0,0,0,0,0,0,0,' imported fossil equivalent');
-INSERT INTO Technology VALUES('IMPHYD','r','supply','water','',1,0,0,0,0,0,0,0,' imported water -- doesnt exist in Utopia');
+INSERT INTO Technology VALUES('IMPURN1','r','supply','nuclear','',1,0,0,0,0,0,0,0,' imported uranium');
+INSERT INTO Technology VALUES('IMPFEQ','r','supply','petroleum','',1,0,0,0,0,0,0,0,' imported fossil equivalent');
+INSERT INTO Technology VALUES('IMPHYD','r','supply','hydro','',1,0,0,0,0,0,0,0,' imported water -- doesnt exist in Utopia');
 INSERT INTO Technology VALUES('E01','pb','electric','coal','',0,0,0,0,0,0,0,0,' coal power plant');
 INSERT INTO Technology VALUES('E21','pb','electric','nuclear','',0,0,0,0,0,0,0,0,' nuclear power plant');
 INSERT INTO Technology VALUES('E31','pb','electric','hydro','',0,0,0,0,0,0,0,0,' hydro power');
-INSERT INTO Technology VALUES('E51','ps','electric','storage','',0,0,0,0,0,0,0,0,' electric storage');
-INSERT INTO Technology VALUES('E70','p','electric','diesel','',0,0,0,0,0,0,0,0,' diesel power plant');
+INSERT INTO Technology VALUES('E51','ps','electric','electric','',0,0,0,0,0,0,0,0,' electric storage');
+INSERT INTO Technology VALUES('E70','p','electric','petroleum','',0,0,0,0,0,0,0,0,' diesel power plant');
 INSERT INTO Technology VALUES('RHE','p','residential','electric','',0,0,0,0,0,0,0,0,' electric residential heating');
-INSERT INTO Technology VALUES('RHO','p','residential','diesel','',0,0,0,0,0,0,0,0,' diesel residential heating');
+INSERT INTO Technology VALUES('RHO','p','residential','petroleum','',0,0,0,0,0,0,0,0,' diesel residential heating');
 INSERT INTO Technology VALUES('RL1','p','residential','electric','',0,0,0,0,0,0,0,0,' residential lighting');
 INSERT INTO Technology VALUES('SRE','p','supply','petroleum','',0,0,0,0,0,0,0,0,' crude oil processor');
-INSERT INTO Technology VALUES('TXD','p','transport','diesel','',0,0,0,0,0,0,0,0,' diesel powered vehicles');
+INSERT INTO Technology VALUES('TXD','p','transport','petroleum','',0,0,0,0,0,0,0,0,' diesel powered vehicles');
 INSERT INTO Technology VALUES('TXE','p','transport','electric','',0,0,0,0,0,0,0,0,' electric powered vehicles');
-INSERT INTO Technology VALUES('TXG','p','transport','gasoline','',0,0,0,0,0,0,0,0,' gasoline powered vehicles');
+INSERT INTO Technology VALUES('TXG','p','transport','petroleum','',0,0,0,0,0,0,0,0,' gasoline powered vehicles');
 CREATE TABLE OutputCost
 (
     scenario TEXT,

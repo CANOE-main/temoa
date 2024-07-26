@@ -683,7 +683,7 @@ def Demand_Constraint(M: 'TemoaModel', r, p, s, d, dem):
     DemandConstraintErrorCheck(supply + supply_annual, r, p, s, d, dem)
 
     expr = (
-        supply + supply_annual == M.Demand[r, p, dem] * M.DemandSpecificDistribution[r, s, d, dem]
+        supply + supply_annual == M.Demand[r, p, dem] * M.DemandSpecificDistribution[r, p, s, d, dem]
     )
 
     return expr
@@ -728,8 +728,8 @@ and not  :math:`\textbf{FOA}`
     )
 
     expr = (
-        act_a * M.DemandSpecificDistribution[r, s, d, dem]
-        == act_b * M.DemandSpecificDistribution[r, s_0, d_0, dem]
+        act_a * M.DemandSpecificDistribution[r, p, s, d, dem]
+        == act_b * M.DemandSpecificDistribution[r, p, s_0, d_0, dem]
     )
     return expr
 
@@ -2564,7 +2564,7 @@ def MinNewCapacityGroup_Constraint(M: 'TemoaModel', r, p, g):
     expr = agg_new_cap >= min_new_cap
     if isinstance(expr, bool):
         logger.error(
-            'No elements available to support min-activity group: (%s, %d, %s).'
+            'No elements available to support min-capacity group: (%s, %d, %s).'
             '  Check data/log for available/suppressed techs.  Requirement IGNORED.',
             r,
             p,
@@ -2580,11 +2580,18 @@ def MaxNewCapacityGroup_Constraint(M: 'TemoaModel', r, p, g):
     max_new_cap = value(M.MaxNewCapacityGroup[r, p, g])
     agg_new_cap = sum(
         M.V_NewCapacity[r, t, p]
-        for t in M.tech_group_members
+        for t in M.tech_group_members[g]
         if (r, p, t) in M.V_CapacityAvailableByPeriodAndTech
     )
     expr = max_new_cap >= agg_new_cap
     if isinstance(expr, bool):
+        logger.error(
+            'No elements available to support max-capacity group: (%s, %d, %s).'
+            '  Check data/log for available/suppressed techs.  Requirement IGNORED.',
+            r,
+            p,
+            g,
+        )
         return Constraint.Skip
     return expr
 
@@ -2817,6 +2824,53 @@ def MaxNewCapacityShare_Constraint(M: 'TemoaModel', r, p, t, g):
     max_cap_share = value(M.MaxNewCapacityShare[r, p, t, g])
 
     expr = capacity_t <= max_cap_share * capacity_group
+    if isinstance(expr, bool):
+        return Constraint.Skip
+    return expr
+
+
+def MinNewCapacityGroupShare_Constraint(M: 'TemoaModel', r, p, g1, g2):
+    r"""
+    Sets the minimum aggregate capacity of one group of technologies as a share of 
+    another group of technologies.
+    """
+    min_share = value(M.MinNewCapacityGroupShare[r, p, g1, g2])
+    agg_new_cap_g1 = sum(
+        M.V_NewCapacity[r, t, p]
+        for t in M.tech_group_members[g1]
+        if (r, p, t) in M.V_CapacityAvailableByPeriodAndTech
+    )
+    agg_new_cap_g2 = sum(
+        M.V_NewCapacity[r, t, p]
+        for t in M.tech_group_members[g2]
+        if (r, p, t) in M.V_CapacityAvailableByPeriodAndTech
+    )
+    expr = agg_new_cap_g1 >= agg_new_cap_g2 * min_share
+
+    print(expr)
+    if isinstance(expr, bool):
+        return Constraint.Skip
+    return expr
+
+
+def MaxNewCapacityGroupShare_Constraint(M: 'TemoaModel', r, p, g1, g2):
+    r"""
+    Sets the maximum aggregate capacity of one group of technologies as a share of 
+    another group of technologies.
+    """
+    max_share = value(M.MaxNewCapacityGroupShare[r, p, g1, g2])
+    agg_new_cap_g1 = sum(
+        M.V_NewCapacity[r, t, p]
+        for t in M.tech_group_members[g1]
+        if (r, p, t) in M.V_CapacityAvailableByPeriodAndTech
+    )
+    agg_new_cap_g2 = sum(
+        M.V_NewCapacity[r, t, p]
+        for t in M.tech_group_members[g2]
+        if (r, p, t) in M.V_CapacityAvailableByPeriodAndTech
+    )
+    expr = agg_new_cap_g1 <= agg_new_cap_g2 * max_share
+    print(expr)
     if isinstance(expr, bool):
         return Constraint.Skip
     return expr
