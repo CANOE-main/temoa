@@ -70,6 +70,30 @@ def make_excel(ifile, ofile: Path, scenario):
         for col, val in enumerate(df_capacity_sector.columns.values):
             worksheet.write(0, col, val, header_format)
 
+    # Added built capacity tables
+
+    query = f"SELECT region, tech, sector, vintage, sum(capacity) as capacity FROM OutputBuiltCapacity WHERE scenario= '{scenario}' GROUP BY region, tech, sector, vintage"
+    df_new_capacity = pd.read_sql_query(query, con)
+    for sector in sorted(df_new_capacity['sector'].unique()):
+        df_new_capacity_sector = df_new_capacity[df_new_capacity['sector'] == sector]
+        df_new_capacity_sector = df_new_capacity_sector.drop(columns=['sector']).pivot_table(
+            values='capacity', index=['region', 'tech'], columns='vintage'
+        )
+        df_new_capacity_sector.reset_index(inplace=True)
+        sector_techs = all_techs[all_techs['sector'] == sector]
+        df_new_capacity_sector = pd.merge(
+            sector_techs[['region', 'tech']], df_new_capacity_sector, on=['region', 'tech'], how='left'
+        )
+        df_new_capacity_sector.rename(columns={'region': 'Region', 'tech': 'Technology'}, inplace=True)
+        df_new_capacity_sector.to_excel(
+            writer, sheet_name='NewCapacity_' + sector, index=False, startrow=1, header=False
+        )
+        worksheet = writer.sheets['NewCapacity_' + sector]
+        worksheet.set_column('A:A', 10)
+        worksheet.set_column('B:B', 10)
+        for col, val in enumerate(df_new_capacity_sector.columns.values):
+            worksheet.write(0, col, val, header_format)
+
     query = (
         "SELECT region, tech, sector, period, sum(flow) as vflow_out FROM OutputFlowOut WHERE scenario='"
         + scenario
