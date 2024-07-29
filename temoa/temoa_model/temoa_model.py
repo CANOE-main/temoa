@@ -733,7 +733,7 @@ class TemoaModel(AbstractModel):
         )
 
         M.MaxNewCapacityGroupConstraint = Constraint(
-            M.MinNewCapacityGroupConstraint_rpg, rule=MaxNewCapacityGroup_Constraint
+            M.MaxNewCapacityGroupConstraint_rpg, rule=MaxNewCapacityGroup_Constraint
         )
 
         M.MinCapacityShareConstraint = Constraint(
