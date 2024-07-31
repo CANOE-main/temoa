@@ -1924,12 +1924,12 @@ def GrowthRateConstraint_rule(M: 'TemoaModel', p, r, t):
 
     if p == periods[0]:
         expr = CapPT[r, p, t] <= GRS * GRM
-
+    
     else:
         p_prev = periods.index(p)
         p_prev = periods[p_prev - 1]
         if (r, p_prev, t) in CapPT.keys():
-            expr = CapPT[r, p, t] <= GRM * CapPT[r, p_prev, t]
+            expr = CapPT[r, p, t] <= GRM * CapPT[r, p_prev, t] + GRS    # + GRS was missing, therefore denying any growth for every tech with no capacity on p0
         else:
             expr = CapPT[r, p, t] <= GRS * GRM
 
@@ -2730,7 +2730,6 @@ def MinNewCapacityGroupShare_Constraint(M: 'TemoaModel', r, p, g1, g2):
     )
     expr = agg_new_cap_g1 >= agg_new_cap_g2 * min_share
 
-    print(expr)
     if isinstance(expr, bool):
         return Constraint.Skip
     return expr
@@ -2753,7 +2752,7 @@ def MaxNewCapacityGroupShare_Constraint(M: 'TemoaModel', r, p, g1, g2):
         if (r, p, t) in M.V_CapacityAvailableByPeriodAndTech
     )
     expr = agg_new_cap_g1 <= agg_new_cap_g2 * max_share
-    print(expr)
+
     if isinstance(expr, bool):
         return Constraint.Skip
     return expr
