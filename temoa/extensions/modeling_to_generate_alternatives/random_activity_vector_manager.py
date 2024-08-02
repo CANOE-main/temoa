@@ -45,7 +45,6 @@ from temoa.extensions.modeling_to_generate_alternatives.hull import Hull
 from temoa.extensions.modeling_to_generate_alternatives.mga_constants import MgaWeighting
 from temoa.extensions.modeling_to_generate_alternatives.vector_manager import VectorManager
 from temoa.temoa_model.temoa_model import TemoaModel
-from temoa.temoa_model.temoa_rules import loan_cost
 
 logger = getLogger(__name__)
 
@@ -67,7 +66,7 @@ class DefaultItem:
 default_cat = DefaultItem('DEFAULT')
 
 
-class RandomCapacityVectorManager(VectorManager):
+class RandomActivityVectorManager(VectorManager):
     def __init__(
         self,
         conn: sqlite3.Connection,
@@ -137,13 +136,17 @@ class RandomCapacityVectorManager(VectorManager):
         for cat in self.category_mapping:
             logger.debug('Category %s members: %d', cat, len(self.category_mapping[cat]))
 
-        # now pull new capacity variables
-        for idx in self.base_model.NewCapacityVar_rtv:
-            if idx[2] not in self.base_model.time_optimize: continue
-            tech = idx[1]
+        # now pull the flow variables and map them
+        for idx in self.base_model.activeFlow_rpsditvo:
+            tech = idx[5]
             if tech not in self.variable_index_mapping.keys(): continue
             self.technology_size[tech] += 1
-            self.variable_index_mapping[tech][self.base_model.V_NewCapacity.name].append(idx)
+            self.variable_index_mapping[tech][self.base_model.V_FlowOut.name].append(idx)
+        for idx in self.base_model.activeFlow_rpitvo:
+            tech = idx[3]
+            if tech not in self.variable_index_mapping.keys(): continue
+            self.technology_size[tech] += 1
+            self.variable_index_mapping[tech][self.base_model.V_FlowOutAnnual.name].append(idx)
         logger.debug('Catalogued %d Technology Variables', sum(self.technology_size.values()))
 
     @property
@@ -156,7 +159,7 @@ class RandomCapacityVectorManager(VectorManager):
     def random_input_vector_model(self) -> TemoaModel:
         new_model = self.base_model.clone()
         new_model.name = self.new_model_name()
-        var_vec, cost_vec = self.var_vector(new_model)
+        var_vec = self.var_vector(new_model)
         
         # --------------------------------------------------------------------------------------------------
         # This block only if saving and reusing random vectors
@@ -186,7 +189,7 @@ class RandomCapacityVectorManager(VectorManager):
 
         #coeffs = np.random.random(len(var_vec)) # If we aren't saving and reusing the random vectors
         coeffs /= sum(abs(coeffs))
-        obj_expr = quicksum(c * e for c, e in zip(coeffs, cost_vec))
+        obj_expr = quicksum(c * e for c, e in zip(coeffs, var_vec))
         new_model.obj = Objective(expr=obj_expr)
 
         return new_model
@@ -211,19 +214,16 @@ class RandomCapacityVectorManager(VectorManager):
         print("Rerunning base model")
         yield new_model """
 
-        include_bases = True
-
-        if include_bases:
-            # traverse the basis vectors first
+        # traverse the basis vectors first
+        new_model = self.base_model.clone()
+        obj_vector = self._make_basis_objective_vector(new_model)
+        while obj_vector is not None:
+            print("Running a basis vector")
+            new_model.obj = Objective(expr=obj_vector)
+            new_model.name = self.new_model_name()
+            yield new_model
             new_model = self.base_model.clone()
             obj_vector = self._make_basis_objective_vector(new_model)
-            while obj_vector is not None:
-                print("Running a basis vector")
-                new_model.obj = Objective(expr=obj_vector)
-                new_model.name = self.new_model_name()
-                yield new_model
-                new_model = self.base_model.clone()
-                obj_vector = self._make_basis_objective_vector(new_model)
 
         # Random only
         while True:
@@ -292,29 +292,6 @@ class RandomCapacityVectorManager(VectorManager):
 
     def group_members(self, group) -> list[str]:
         return self.category_mapping.get(group, [])
-    
-    def loan_costs(self, M: TemoaModel):
-        P_0 = min(M.time_optimize)
-        P_e = M.time_future.last()  # End point of modeled horizon
-        GDR = value(M.GlobalDiscountRate)
-
-        loan_costs = sum(
-            loan_cost(
-                M.V_NewCapacity[r, S_t, S_v],
-                M.CostInvest[r, S_t, S_v],
-                M.LoanAnnualize[r, S_t, S_v],
-                value(M.LoanLifetimeProcess[r, S_t, S_v]),
-                value(M.LifetimeProcess[r, S_t, S_v]),
-                P_0,
-                P_e,
-                GDR,
-                vintage=S_v,
-            )
-            for r, S_t, S_v in M.CostInvest.sparse_iterkeys()
-            if S_v in M.time_optimize
-        )
-
-        return loan_costs
 
     # noinspection PyTypeChecker
     def _make_basis_objective_vector(self, M: TemoaModel) -> Iterable[Expression] | None:
@@ -327,13 +304,12 @@ class RandomCapacityVectorManager(VectorManager):
             return None
 
         # now we need to roll out a vector of the variables and pair them with coefficients...
-        var_vec, cost_vec = self.var_vector(M)
+        var_vec = self.var_vector(M)
 
         # verify a unit vector
         err = abs(abs(sum(coeffs)) - 1)
         assert err < 1e-6, 'unit vector size error'
-        expr = sum(c * e for c, e in zip(coeffs, cost_vec) if c != 0)
-        #expr += 1E-6 * self.loan_costs(M)
+        expr = sum(c * e for c, e in zip(coeffs, var_vec) if c != 0)
         return expr
 
     # Facet normal vectors
@@ -362,15 +338,10 @@ class RandomCapacityVectorManager(VectorManager):
         assert len(obj_vars) == len(coeffs)
         return quicksum(c * v for v, c in zip(obj_vars, coeffs))
 
-    def var_vector(self, M: TemoaModel) -> tuple[list[Var], list[Expression]]:
+    def var_vector(self, M: TemoaModel) -> list[Var]:
         """Produce a properly sequenced array of variables from the current model for use in obj vector"""
 
-        P_0 = min(M.time_optimize)
-        P_e = M.time_future.last()  # End point of modeled horizon
-        GDR = value(M.GlobalDiscountRate)
-
         vars = []
-        costs = []
         for cat in self.category_mapping:
             if cat == default_cat: continue
             for tech in self.category_mapping[cat]:
@@ -382,20 +353,7 @@ class RandomCapacityVectorManager(VectorManager):
                         )
                     for idx in self.variable_index_mapping[tech][var_name]:
                         vars.append(var[idx])
-                        costs.append(
-                            loan_cost(
-                                M.V_NewCapacity[idx],
-                                M.CostInvest[idx],
-                                M.LoanAnnualize[idx],
-                                value(M.LoanLifetimeProcess[idx]),
-                                value(M.LifetimeProcess[idx]),
-                                P_0,
-                                P_e,
-                                GDR,
-                                vintage=idx[2],
-                            )
-                        )
-        return vars, costs
+        return vars
 
     def regenerate_hull(self):
         """make the hull..."""

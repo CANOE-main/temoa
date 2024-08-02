@@ -462,7 +462,6 @@ def fixed_or_variable_cost(
     )
     return res
 
-
 def PeriodCost_rule(M: 'TemoaModel', p):
     P_0 = min(M.time_optimize)
     P_e = M.time_future.last()  # End point of modeled horizon
@@ -1360,13 +1359,6 @@ is limited by the power capacity (typically GW) of the storage unit.
         for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
     )
 
-    # Calculate energy discharge in each time slice
-    slice_curtailment = sum(
-        M.V_Curtailment[r, p, s, d, S_i, t, v, S_o]
-        for S_o in M.processOutputs[r, p, t, v]
-        for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
-    )
-
     # Maximum energy discharge in each time slice
     max_discharge = (
         M.V_Capacity[r, p, t, v]
@@ -1375,10 +1367,15 @@ is limited by the power capacity (typically GW) of the storage unit.
         * value(M.ProcessLifeFrac[r, p, t, v])
     )
 
-    # Energy discharge cannot exceed the capacity of the storage unit
-    expr = slice_discharge + slice_curtailment <= max_discharge
-
-    return expr
+    if t in M.tech_reserve:
+        # Calculate energy discharge in each time slice
+        slice_curtailment = sum(
+            M.V_Curtailment[r, p, s, d, S_i, t, v, S_o]
+            for S_o in M.processOutputs[r, p, t, v]
+            for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
+        )
+        return slice_discharge + slice_curtailment <= max_discharge
+    else: return slice_discharge <= max_discharge
 
 
 def StorageThroughput_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
@@ -1415,13 +1412,15 @@ def StorageThroughput_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
         for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
     )
 
-    curtailment = sum(
-        M.V_Curtailment[r, p, s, d, S_i, t, v, S_o]
-        for S_i in M.processInputs[r, p, t, v]
-        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
-    )
+    if t in M.tech_reserve:
+        curtailment = sum(
+            M.V_Curtailment[r, p, s, d, S_i, t, v, S_o]
+            for S_i in M.processInputs[r, p, t, v]
+            for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+        )
+        throughput = charge + discharge + curtailment
+    else: throughput = charge + discharge
 
-    throughput = charge + discharge + curtailment
     max_throughput = (
         M.V_Capacity[r, p, t, v]
         * M.CapacityToActivity[r, t]
@@ -1904,14 +1903,15 @@ def StorageReserve_Constraint(M, r, p, s, d, t, v):
         for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
     )
 
-    # This should represent what COULD have been discharged in this time slice, but wasnt
-    curtailment = sum(
-        M.V_Curtailment[r, p, s, d, S_i, t, v, S_o]
-        for S_o in M.processOutputs[r, p, t, v]
-        for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
-    )
-
-    required_energy = discharge + curtailment - charge
+    if t in M.tech_reserve:
+        # This should represent what COULD have been discharged in this time slice, but wasnt
+        curtailment = sum(
+            M.V_Curtailment[r, p, s, d, S_i, t, v, S_o]
+            for S_o in M.processOutputs[r, p, t, v]
+            for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
+        )
+        required_energy = discharge + curtailment - charge
+    else: required_energy = discharge - charge
 
     return M.V_StorageLevel[r, p, s, d, t, v] >= required_energy
 

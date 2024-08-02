@@ -37,6 +37,9 @@ from temoa.extensions.modeling_to_generate_alternatives.tech_capacity_vector_man
 from temoa.extensions.modeling_to_generate_alternatives.random_capacity_vector_manager import (
     RandomCapacityVectorManager,
 )
+from temoa.extensions.modeling_to_generate_alternatives.random_activity_vector_manager import (
+    RandomActivityVectorManager,
+)
 from temoa.extensions.modeling_to_generate_alternatives.vector_manager import VectorManager
 from temoa.temoa_model.temoa_model import TemoaModel
 
@@ -62,6 +65,11 @@ def get_manager(
         case MgaAxis.RANDOM_TECH_CAPACITY:
             print("Running MGA using random tech capacity")
             return RandomCapacityVectorManager(
+                base_model=model, conn=con, weighting=weighting, **kwargs
+            )
+        case MgaAxis.RANDOM_TECH_ACTIVITY:
+            print("Running MGA using random tech activity")
+            return RandomActivityVectorManager(
                 base_model=model, conn=con, weighting=weighting, **kwargs
             )
         case _:

@@ -118,6 +118,9 @@ class Worker(Process):
                     e,
                 )
                 res = None
+                # Write broken MGA runs to lp file
+                lp_filepath = self.solver_log_path / (model.name + '.lp')
+                #model.write(lp_filepath, format='lp', io_options={'symbolic_solver_labels': True})
             toc = datetime.now()
 
             # guard against a bad "res" object...
