@@ -227,7 +227,7 @@ class TemoaModel(AbstractModel):
         #            cause any problems, so let it be for now.
         M.DemandDefaultDistribution = Param(M.time_season, M.time_of_day, mutable=True)
         M.DemandSpecificDistribution = Param(
-            M.regions, M.time_season, M.time_of_day, M.commodity_demand, mutable=True, default=0
+            M.regions, M.time_future, M.time_season, M.time_of_day, M.commodity_demand, mutable=True, default=0
         )
 
         M.Demand = Param(M.regions, M.time_optimize, M.commodity_demand)
@@ -449,7 +449,7 @@ class TemoaModel(AbstractModel):
 
         M.MaxNewCapacityShareConstraint_rptg = Set(within=M.GroupShareIndices)
         M.MaxNewCapacityShare = Param(M.GroupShareIndices)
-        
+
         M.TwoGroupShareIndices = Set(dimen=4, initialize=TwoGroupShareIndices)
         M.MinNewCapacityGroupShareConstraint_rpgg = Set(within=M.TwoGroupShareIndices)
         M.MinNewCapacityGroupShare = Param(M.TwoGroupShareIndices)
@@ -457,7 +457,7 @@ class TemoaModel(AbstractModel):
         M.MaxNewCapacityGroupShareConstraint_rpgg = Set(within=M.TwoGroupShareIndices)
         M.MaxNewCapacityGroupShare = Param(M.TwoGroupShareIndices)
         M.LinkedTechs = Param(M.RegionalIndices, M.tech_all, M.commodity_emissions, within=Any)
-
+        
         # Define parameters associated with electric sector operation
         M.RampUp = Param(M.regions, M.tech_ramping)
         M.RampDown = Param(M.regions, M.tech_ramping)

@@ -541,7 +541,7 @@ class HybridLoader:
 
         # DemandSpecificDistribution
         raw = cur.execute(
-            'SELECT region, season, tod, demand_name, dsd FROM main.DemandSpecificDistribution'
+            'SELECT region, period, season, tod, demand_name, dsd FROM main.DemandSpecificDistribution'
         ).fetchall()
         load_element(M.DemandSpecificDistribution, raw)
 

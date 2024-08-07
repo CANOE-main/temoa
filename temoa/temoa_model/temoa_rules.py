@@ -638,7 +638,7 @@ def Demand_Constraint(M: 'TemoaModel', r, p, s, d, dem):
     DemandConstraintErrorCheck(supply + supply_annual, r, p, s, d, dem)
 
     expr = (
-        supply + supply_annual == M.Demand[r, p, dem] * M.DemandSpecificDistribution[r, s, d, dem]
+        supply + supply_annual == M.Demand[r, p, dem] * M.DemandSpecificDistribution[r, p, s, d, dem]
     )
 
     return expr
@@ -683,8 +683,8 @@ def DemandActivity_Constraint(M: 'TemoaModel', r, p, s, d, t, v, dem, s_0, d_0):
     )
 
     expr = (
-        act_a * M.DemandSpecificDistribution[r, s, d, dem]
-        == act_b * M.DemandSpecificDistribution[r, s_0, d_0, dem]
+        act_a * M.DemandSpecificDistribution[r, p, s, d, dem]
+        == act_b * M.DemandSpecificDistribution[r, p, s_0, d_0, dem]
     )
     return expr
 
