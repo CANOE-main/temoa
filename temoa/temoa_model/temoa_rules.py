@@ -2946,7 +2946,7 @@ def TechInputSplit_Constraint(M: 'TemoaModel', r, p, s, d, i, t, v):
     total_inp = sum(
         M.V_FlowOut[r, p, s, d, S_i, t, v, S_o] / value(M.Efficiency[r, S_i, t, v, S_o])
         for S_i in M.processInputs[r, p, t, v]
-        for S_o in M.ProcessOutputsByInput[r, p, t, v, i]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
     )
 
     expr = inp >= M.TechInputSplit[r, p, i, t] * total_inp
@@ -2968,7 +2968,7 @@ def TechInputSplitAnnual_Constraint(M: 'TemoaModel', r, p, i, t, v):
     total_inp = sum(
         M.V_FlowOutAnnual[r, p, S_i, t, v, S_o] / value(M.Efficiency[r, S_i, t, v, S_o])
         for S_i in M.processInputs[r, p, t, v]
-        for S_o in M.ProcessOutputsByInput[r, p, t, v, i]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
     )
 
     expr = inp >= M.TechInputSplit[r, p, i, t] * total_inp
