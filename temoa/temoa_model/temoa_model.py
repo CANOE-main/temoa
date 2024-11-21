@@ -173,6 +173,7 @@ class TemoaModel(AbstractModel):
         M.commodity_emissions = Set()
         M.commodity_physical = Set()
         M.commodity_source = Set(within=M.commodity_physical)
+        M.commodity_annual = Set(within=M.commodity_physical)
         M.commodity_carrier = Set(initialize=M.commodity_physical | M.commodity_demand)
         M.commodity_all = Set(initialize=M.commodity_carrier | M.commodity_emissions)
 
@@ -584,6 +585,13 @@ class TemoaModel(AbstractModel):
         )
         M.CommodityBalanceAnnualConstraint = Constraint(
             M.CommodityBalanceAnnualConstraint_rpc, rule=CommodityBalanceAnnual_Constraint
+        )
+
+        M.AnnualCommodityBalanceConstraint_rpc = Set(
+            dimen=3, initialize=AnnualCommodityBalanceConstraintIndices
+        )
+        M.AnnualCommodityBalanceConstraint = Constraint(
+            M.AnnualCommodityBalanceConstraint_rpc, rule=AnnualCommodityBalance_Constraint
         )
 
         M.ResourceExtractionConstraint = Constraint(

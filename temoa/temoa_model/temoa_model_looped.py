@@ -173,6 +173,7 @@ class TemoaModel(AbstractModel):
         M.commodity_emissions = Set()
         M.commodity_physical = Set()
         M.commodity_source = Set(within=M.commodity_physical)
+        M.commodity_annual = Set(within=M.commodity_physical)
         M.commodity_carrier = Set(initialize=M.commodity_physical | M.commodity_demand)
         M.commodity_all = Set(initialize=M.commodity_carrier | M.commodity_emissions)
 
@@ -457,8 +458,8 @@ class TemoaModel(AbstractModel):
         M.StorageDuration = Param(M.regions, M.tech_storage, default=4)
         # Initial storage charge level, expressed as fraction of full energy capacity.
         # If the parameter is not defined, the model optimizes the initial storage charge level.
-        M.StorageInit_rtv = Set(dimen=3, initialize=StorageInitIndices)
-        M.StorageInitFrac = Param(M.StorageInit_rtv)
+        """ M.StorageInit_rtv = Set(dimen=3, initialize=StorageInitIndices)
+        M.StorageInitFrac = Param(M.StorageInit_rtv) """
 
         M.MyopicBaseyear = Param(default=0)
 
@@ -499,7 +500,7 @@ class TemoaModel(AbstractModel):
 
         M.StorageLevel_rpsdtv = Set(dimen=6, initialize=StorageVariableIndices)
         M.V_StorageLevel = Var(M.StorageLevel_rpsdtv, domain=NonNegativeReals)
-        M.V_StorageInit = Var(M.StorageInit_rtv, domain=NonNegativeReals)
+        """ M.V_StorageInit = Var(M.StorageInit_rtv, domain=NonNegativeReals) """
 
         # Derived decision variables
 
@@ -631,10 +632,10 @@ class TemoaModel(AbstractModel):
             M.StorageConstraints_rpsdtv, rule=StorageThroughput_Constraint
         )
 
-        M.StorageInitConstraint_rtv = Set(dimen=2, initialize=StorageInitConstraintIndices)
+        """ M.StorageInitConstraint_rtv = Set(dimen=2, initialize=StorageInitConstraintIndices)
         M.StorageInitConstraint = Constraint(
             M.StorageInitConstraint_rtv, rule=StorageInit_Constraint
-        )
+        ) """
 
         M.RampConstraintDay_rpsdtv = Set(dimen=6, initialize=RampConstraintDayIndices)
         M.RampUpConstraintDay = Constraint(M.RampConstraintDay_rpsdtv, rule=RampUpDay_Constraint)
