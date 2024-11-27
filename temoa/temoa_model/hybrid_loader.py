@@ -600,22 +600,6 @@ class HybridLoader:
             ).fetchall()
         load_element(M.TechInputSplit, raw, self.viable_rt, (0, 3))
 
-        # TechInputSplitAverage
-        if self.table_exists('TechInputSplitAverage'):
-            if mi:
-                raw = cur.execute(
-                    'SELECT region, period, input_comm, tech, min_proportion '
-                    'FROM main.TechInputSplitAverage '
-                    'WHERE period >= ? AND period <= ?',
-                    (mi.base_year, mi.last_demand_year),
-                ).fetchall()
-            else:
-                raw = cur.execute(
-                    'SELECT region, period, input_comm, tech, min_proportion '
-                    'FROM main.TechInputSplitAverage '
-                ).fetchall()
-            load_element(M.TechInputSplitAverage, raw, self.viable_rt, (0, 3))
-
         # TechOutputSplit
         if self.table_exists('TechOutputSplit'):
             if mi:

@@ -685,13 +685,6 @@ def CreateSparseDicts(M: 'TemoaModel'):
                 t,
             ) not in M.inputsplitVintages:
                 M.inputsplitVintages[r, p, i, t] = set()
-            if (r, p, i, t) in M.TechInputSplitAverage.sparse_iterkeys() and (
-                r,
-                p,
-                i,
-                t,
-            ) not in M.inputsplitaverageVintages:
-                M.inputsplitaverageVintages[r, p, i, t] = set()
             if (r, p, t, o) in M.TechOutputSplit.sparse_iterkeys() and (
                 r,
                 p,
@@ -734,8 +727,6 @@ def CreateSparseDicts(M: 'TemoaModel'):
                 M.rampVintages[r, p, t].add(v)
             if (r, p, i, t) in M.TechInputSplit.sparse_iterkeys():
                 M.inputsplitVintages[r, p, i, t].add(v)
-            if (r, p, i, t) in M.TechInputSplitAverage.sparse_iterkeys():
-                M.inputsplitaverageVintages[r, p, i, t].add(v)
             if (r, p, t, o) in M.TechOutputSplit.sparse_iterkeys():
                 M.outputsplitVintages[r, p, t, o].add(v)
             if t in M.tech_resource:
@@ -1323,9 +1314,9 @@ def TechInputSplitAnnualConstraintIndices(M: 'TemoaModel'):
 def TechInputSplitAverageConstraintIndices(M: 'TemoaModel'):
     indices = set(
         (r, p, i, t, v)
-        for r, p, i, t in M.inputsplitaverageVintages.keys()
-        if t in M.tech_variable
-        for v in M.inputsplitaverageVintages[r, p, i, t]
+        for r, p, i, t in M.inputsplitVintages.keys()
+        if t in M.tech_variable and t not in M.tech_annual
+        for v in M.inputsplitVintages[r, p, i, t]
     )
     return indices
 
@@ -1334,7 +1325,7 @@ def TechOutputSplitConstraintIndices(M: 'TemoaModel'):
     indices = set(
         (r, p, s, d, t, v, o)
         for r, p, t, o in M.outputsplitVintages.keys()
-        if t not in M.tech_annual
+        if t not in M.tech_annual and t not in M.tech_variable
         for v in M.outputsplitVintages[r, p, t, o]
         for s in M.time_season
         for d in M.time_of_day
@@ -1347,12 +1338,21 @@ def TechOutputSplitAnnualConstraintIndices(M: 'TemoaModel'):
     indices = set(
         (r, p, t, v, o)
         for r, p, t, o in M.outputsplitVintages.keys()
-        if t in M.tech_annual and t not in M.tech_variable
+        if t in M.tech_annual
         for v in M.outputsplitVintages[r, p, t, o]
     )
 
     return indices
 
+def TechOutputSplitAverageConstraintIndices(M: 'TemoaModel'):
+    indices = set(
+        (r, p, t, v, o)
+        for r, p, t, o in M.outputsplitVintages.keys()
+        if t in M.tech_variable and t not in M.tech_annual
+        for v in M.outputsplitVintages[r, p, t, o]
+    )
+
+    return indices
 
 def get_loan_life(M, r, t, _):
     return M.LoanLifetimeTech[r, t]

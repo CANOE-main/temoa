@@ -2999,7 +2999,7 @@ def TechInputSplitAverage_Constraint(M: 'TemoaModel', r, p, i, t, v):
         for S_o in M.ProcessOutputsByInput[r, p, t, v, i]
     )
 
-    expr = inp >= M.TechInputSplitAverage[r, p, i, t] * total_inp
+    expr = inp >= M.TechInputSplit[r, p, i, t] * total_inp
     return expr
 
 
@@ -3076,6 +3076,40 @@ def TechOutputSplitAnnual_Constraint(M: 'TemoaModel', r, p, t, v, o):
         M.V_FlowOutAnnual[r, p, S_i, t, v, S_o]
         for S_i in M.processInputs[r, p, t, v]
         for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+    )
+
+    expr = out >= M.TechOutputSplit[r, p, t, o] * total_out
+    return expr
+
+def TechOutputSplitAverage_Constraint(M: 'TemoaModel', r, p, t, v, o):
+    r"""
+    This constraint operates similarly to TechOutputSplit_Constraint.
+    However, under this function, only the technologies with constant annual
+    output (i.e., members of the :math:`tech_annual` set) are considered.
+
+    .. math::
+       :label: TechOutputSplitAnnual
+
+         \sum_{I, T^{a}} \textbf{FOA}_{r, p, i, t \in T^{a}, v, o}
+
+       \geq
+
+         TOS_{r, p, t, o} \cdot \sum_{I, O, T^{a}} \textbf{FOA}_{r, p, s, d, i, t \in T^{a}, v, o}
+
+       \forall \{r, p, t \in T^{a}, v, o\} \in \Theta_{\text{TechOutputSplitAnnual}}"""
+    out = sum(
+        M.V_FlowOut[r, p, S_s, S_d, S_i, t, v, o]
+        for S_i in M.ProcessInputsByOutput[r, p, t, v, o]
+        for S_s in M.time_season
+        for S_d in M.time_of_day
+    )
+
+    total_out = sum(
+        M.V_FlowOut[r, p, S_s, S_d, S_i, t, v, S_o]
+        for S_i in M.processInputs[r, p, t, v]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+        for S_s in M.time_season
+        for S_d in M.time_of_day
     )
 
     expr = out >= M.TechOutputSplit[r, p, t, o] * total_out
