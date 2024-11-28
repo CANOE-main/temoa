@@ -451,10 +451,6 @@ class HybridLoader:
         raw = cur.execute('SELECT tech FROM Technology WHERE annual > 0').fetchall()
         load_element(M.tech_annual, raw, self.viable_techs)
 
-        # tech_variable
-        raw = cur.execute('SELECT tech FROM Technology WHERE variable > 0').fetchall()
-        load_element(M.tech_variable, raw, self.viable_techs)
-
         # tech_retirement
         raw = cur.execute('SELECT tech FROM Technology WHERE retire > 0').fetchall()
         load_element(M.tech_retirement, raw, self.viable_techs)
@@ -629,6 +625,22 @@ class HybridLoader:
                     'SELECT region, period, tech, output_comm, min_proportion FROM main.TechOutputSplit '
                 ).fetchall()
             load_element(M.TechOutputSplit, raw, self.viable_rt, (0, 2))
+
+        # TechOutputSplitAverage
+        if self.table_exists('TechOutputSplitAverage'):
+            if mi:
+                raw = cur.execute(
+                    'SELECT region, period, tech, output_comm, min_proportion '
+                    'FROM main.TechOutputSplitAverage '
+                    'WHERE period >= ? AND period <= ?',
+                    (mi.base_year, mi.last_demand_year),
+                ).fetchall()
+            else:
+                raw = cur.execute(
+                    'SELECT region, period, tech, output_comm, min_proportion '
+                    'FROM main.TechOutputSplitAverage '
+                ).fetchall()
+            load_element(M.TechOutputSplitAverage, raw, self.viable_rt, (0, 3))
 
         # RenewablePortfolioStandard
         if self.table_exists('RPSRequirement'):
