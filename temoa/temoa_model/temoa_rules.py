@@ -3107,7 +3107,6 @@ def TechOutputSplitAverage_Constraint(M: 'TemoaModel', r, p, t, v, o):
     )
 
     expr = out >= M.TechOutputSplitAverage[r, p, t, o] * total_out
-    print(expr)
     return expr
 
 
