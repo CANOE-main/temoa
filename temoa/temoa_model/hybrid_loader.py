@@ -640,7 +640,7 @@ class HybridLoader:
                     'SELECT region, period, tech, output_comm, min_proportion '
                     'FROM main.TechOutputSplitAverage '
                 ).fetchall()
-            load_element(M.TechOutputSplitAverage, raw, self.viable_rt, (0, 3))
+            load_element(M.TechOutputSplitAverage, raw, self.viable_rt, (0, 2))
 
         # RenewablePortfolioStandard
         if self.table_exists('RPSRequirement'):
