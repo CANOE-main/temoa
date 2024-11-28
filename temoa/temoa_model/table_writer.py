@@ -78,6 +78,7 @@ EI = namedtuple('EI', ['r', 'p', 't', 'v', 'e'])
 """Emission Index"""
 
 
+
 @unique
 class FlowType(Enum):
     """Types of flow tracked"""
@@ -135,6 +136,18 @@ class TableWriter:
         self.write_capacity_tables(M)
         # analyze the emissions to get the costs and flows
         e_costs, e_flows = self._gather_emission_costs_and_flows(M)
+        ee_costs, ee_flows = self._gather_embodied_emission_costs_and_flows(M)
+        for key_outer, value_outer in ee_costs.items(): # Add the embodied emission costs to the main emission costs
+            if key_outer not in e_costs:
+                e_costs[key_outer] = defaultdict(float)
+            for key_inner, value_inner in value_outer.items():
+                e_costs[key_outer][key_inner] += value_inner
+        for key, value in ee_flows.items(): # Add the embodied emission flows to the main emission costs
+            if key not in e_flows:
+                e_flows[key] = value
+            else:
+                e_flows[key] += value
+
         self.emission_register = e_flows
         self.write_emissions()
         self.write_costs(M, emission_entries=e_costs)
@@ -208,7 +221,10 @@ class TableWriter:
             val = self.emission_register[ei]
             if abs(val) < self.epsilon:
                 continue
-            entry = (scenario, ei.r, sector, ei.p, ei.e, ei.t, ei.v, val)
+            if hasattr(ei, 'p'): # emissions from flows
+                entry = (scenario, ei.r, sector, ei.p, ei.e, ei.t, ei.v, val)
+            else: # embodied emissions
+                entry = (scenario, ei.r, sector, ei.v, ei.e, ei.t, ei.v, val)
             data.append(entry)
         qry = f'INSERT INTO OutputEmission VALUES {_marks(8)}'
         self.con.executemany(qry, data)
@@ -624,6 +640,51 @@ class TableWriter:
         # translate the entries into fodder for the query
         self._write_cost_rows(entries)
         self._write_cost_rows(exchange_costs.get_entries())
+
+    def _gather_embodied_emission_costs_and_flows(self, M: 'TemoaModel'):
+        GDR = value(M.GlobalDiscountRate)
+        if self.config.scenario_mode == TemoaMode.MYOPIC:
+            p_0 = M.MyopicBaseyear
+        else:
+            p_0 = min(M.time_optimize)
+
+        flows: dict[EI, float] = defaultdict(float)
+        # iterate through the normal and annual and accumulate flow values
+        for r, e, t, v in M.EmissionEmbodied.sparse_iterkeys():
+            flows[EI(r, v, t, v, e)] += value(M.V_NewCapacity[r, t, v] * M.EmissionEmbodied[r, e, t, v])
+        # gather costs
+        ud_costs = defaultdict(float)
+        d_costs = defaultdict(float)
+        for ei in flows:
+            # screen to see if there is an associated cost
+            cost_index = (ei.r, ei.v, ei.e)
+            if cost_index not in M.CostEmission:
+                continue
+            # check for epsilon
+            if abs(flows[ei]) < self.epsilon:
+                flows[ei] = 0.0
+                continue
+            undiscounted_emiss_cost = (
+                flows[ei] * M.CostEmission[ei.r, ei.v, ei.e] * 1 # MPL = 1: we assume the emissions occur in the year of construction.
+            )
+            discounted_emiss_cost = temoa_rules.fixed_or_variable_cost(
+                cap_or_flow=flows[ei],
+                cost_factor=M.CostEmission[ei.r, ei.v, ei.e],
+                process_lifetime=1,
+                GDR=GDR,
+                P_0=p_0,
+                p=ei.v,
+            )
+            ud_costs[ei.r, ei.v, ei.t, ei.v] += undiscounted_emiss_cost
+            d_costs[ei.r, ei.v, ei.t, ei.v] += discounted_emiss_cost
+        costs = defaultdict(dict)
+        for k in ud_costs:
+            costs[k][CostType.EMISS] = ud_costs[k]
+        for k in d_costs:
+            costs[k][CostType.D_EMISS] = d_costs[k]
+
+        # wow, that was like pulling teeth
+        return costs, flows
 
     def _gather_emission_costs_and_flows(self, M: 'TemoaModel'):
         """there are 5 'flavors' of emission costs.  So, we need to gather the base and then decide on each"""

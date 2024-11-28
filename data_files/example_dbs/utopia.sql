@@ -428,10 +428,10 @@ CREATE TABLE DemandSpecificDistribution
         REFERENCES TimeOfDay (tod),
     demand_name TEXT
         REFERENCES Commodity (name),
-    dds         REAL,
-    dds_notes   TEXT,
+    dsd         REAL,
+    dsd_notes   TEXT,
     PRIMARY KEY (region, season, tod, demand_name),
-    CHECK (dds >= 0 AND dds <= 1)
+    CHECK (dsd >= 0 AND dsd <= 1)
 );
 INSERT INTO DemandSpecificDistribution VALUES('utopia','inter','day','RH',0.1199999999999999956,'');
 INSERT INTO DemandSpecificDistribution VALUES('utopia','inter','night','RH',0.05999999999999999778,'');
@@ -566,6 +566,20 @@ INSERT INTO EmissionActivity VALUES('utopia','nox','GSL','TXG',1980,'TX',1.0,'',
 INSERT INTO EmissionActivity VALUES('utopia','nox','GSL','TXG',1990,'TX',1.0,'','');
 INSERT INTO EmissionActivity VALUES('utopia','nox','GSL','TXG',2000,'TX',1.0,'','');
 INSERT INTO EmissionActivity VALUES('utopia','nox','GSL','TXG',2010,'TX',1.0,'','');
+CREATE TABLE EmissionEmbodied
+(
+    region      TEXT,
+    emis_comm   TEXT
+        REFERENCES Commodity (name),
+    tech        TEXT
+        REFERENCES Technology (tech),
+    vintage     INTEGER
+        REFERENCES TimePeriod (period),
+    value       REAL,
+    units       TEXT,
+    notes       TEXT,
+    PRIMARY KEY (region, emis_comm, tech, vintage)
+);
 CREATE TABLE ExistingCapacity
 (
     region   TEXT,

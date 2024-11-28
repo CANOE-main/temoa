@@ -621,12 +621,28 @@ def PeriodCost_rule(M: 'TemoaModel', p):
     #     for (r, p, e, i, t, v, o) in annual
     #     if t in M.tech_flex and o in M.flex_commodities
     # )
+
+    # 6. embodied
+    embodied_emissions = sum(
+        fixed_or_variable_cost(
+            cap_or_flow=M.V_NewCapacity[r, t, v] * M.EmissionEmbodied[r, e, t, v],
+            cost_factor=M.CostEmission[r, p, e],
+            process_lifetime=1, # We assume the embodied emissions are emitted in the same year as the capacity is installed.
+            GDR=GDR,
+            P_0=P_0,
+            p=p,
+        )
+        for (r, e, t, v) in M.EmissionEmbodied.sparse_iterkeys()
+        if v == p
+    )
+
     period_emission_cost = (
         var_emissions
         # + flex_emissions
         # + curtail_emissions
         + var_annual_emissions
         # + flex_annual_emissions
+        + embodied_emissions
     )
 
     period_costs = (
@@ -1998,8 +2014,15 @@ output in separate terms.
         SE.write(msg % (e, emission_limit))
         return Constraint.Skip
 
+    embodied_emissions = sum(
+        M.V_NewCapacity[r, t, v]
+        * M.EmissionEmbodied[r, e, t, v]
+        for (S_r, S_e, t, v) in M.EmissionEmbodied.sparse_iterkeys()
+        if v == p and S_r == r and S_e == e
+    )
+
     expr = (
-        actual_emissions + actual_emissions_annual
+        actual_emissions + actual_emissions_annual + embodied_emissions
         # + actual_emissions_flex
         # + actual_emissions_curtail
         # + actual_emissions_flex_annual
