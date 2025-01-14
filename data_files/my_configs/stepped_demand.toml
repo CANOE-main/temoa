@@ -77,9 +77,7 @@ save_lp_file = false
 # if the run is not executed in that mode.
 # ---------------------------------------------------
 [MGA]
-slack = 0.1
-iterations = 4
-weight = "integer"   # currently supported: [integer, normalized]
+
 
 [myopic]
 view_depth = 2   # number of periods seen/analyzed per iteration

@@ -219,7 +219,7 @@ skip_rps = False
 try:
     entries = con_old.execute('SELECT * FROM tech_rps').fetchall()
 except sqlite3.OperationalError:
-    print(f'source does not appear to include RPS techs...skipping')
+    print('source does not appear to include RPS techs...skipping')
     skip_rps = True
 if not skip_rps:
     for region, tech, notes in entries:
@@ -289,7 +289,7 @@ try:
         )
         cur.execute('INSERT OR REPLACE INTO TechGroupMember VALUES (?, ?)', (new_name, tech))
 except sqlite3.OperationalError:
-    print(f'souce does not appear to employ tech_groups...skipping.')
+    print('souce does not appear to employ tech_groups...skipping.')
     skip_tech_groups = True
 if not skip_tech_groups:
     # ------- FIX TABLES THAT USED TO USE tech_groups -----------

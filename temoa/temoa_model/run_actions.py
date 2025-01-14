@@ -34,7 +34,6 @@ from sys import stderr as SE, version_info
 from time import time
 from typing import Tuple
 
-import deprecated
 from pyomo.environ import (
     DataPortal,
     Suffix,
@@ -53,27 +52,6 @@ from temoa.temoa_model.temoa_config import TemoaConfig
 from temoa.temoa_model.temoa_model import TemoaModel
 
 logger = getLogger(__name__)
-
-
-@deprecated.deprecated('dat files are no longer supported...for removal')
-def load_portal_from_dat(dat_file: Path, silent: bool = False) -> DataPortal:
-    loaded_portal = DataPortal(model=TemoaModel())
-
-    if dat_file.suffix != '.dat':
-        logger.error('Attempted to load data from file %s which is not a .dat file', dat_file)
-        raise TypeError('file loading error occurred, see log')
-    hack = time()
-    if not silent:
-        SE.write('[        ] Reading data files.')
-        SE.flush()
-
-    logger.debug('Started loading the DataPortal from the .dat file: %s', dat_file)
-    loaded_portal.load(filename=str(dat_file))
-
-    if not silent:
-        SE.write('\r[%8.2f] Data read.\n' % (time() - hack))
-    logger.debug('Finished creating the DataPortal from the .dat')
-    return loaded_portal
 
 
 def check_python_version(min_major, min_minor) -> bool:
@@ -156,6 +134,8 @@ def build_instance(
 ) -> TemoaModel:
     """
     Build a Temoa Instance from data
+    :param lp_path: the path to save the LP file to
+    :param keep_lp_file: True to keep the LP file
     :param loaded_portal: a DataPortal instance
     :param silent: Run silently
     :param model_name: Optional name for this instance
@@ -180,13 +160,7 @@ def build_instance(
 
     # save LP if requested
     if keep_lp_file:
-        if not lp_path:
-            logger.warning('Requested "keep LP file", but no path is provided...skipped')
-        else:
-            if not Path.is_dir(lp_path):
-                Path.mkdir(lp_path)
-            filename = lp_path / 'model.lp'
-            instance.write(filename, format='lp', io_options={'symbolic_solver_labels': True})
+        save_lp(instance, lp_path)
 
     # gather some stats...
     c_count = 0
@@ -197,6 +171,20 @@ def build_instance(
         v_count += len(var)
     logger.info('model built...  Variables: %d, Constraints: %d', v_count, c_count)
     return instance
+
+
+def save_lp(instance: TemoaModel, lp_path: Path) -> None:
+    """
+    quick utility to save the LP file to disc.
+    Note:  if saving multiple LP's they need to be differentiated by path
+    """
+    if not lp_path:
+        logger.warning('Requested "keep LP file", but no path is provided...skipped')
+    else:
+        if not Path.is_dir(lp_path):
+            Path.mkdir(lp_path)
+        filename = lp_path / 'model.lp'
+        instance.write(filename, format='lp', io_options={'symbolic_solver_labels': True})
 
 
 def solve_instance(
@@ -211,7 +199,6 @@ def solve_instance(
     :param instance: the instance to solve
     :return: loaded instance
     """
-    # TODO:  Type the solver in signature
 
     # QA the solver name and get a handle on solver
     if not solver_name:
@@ -267,15 +254,13 @@ def solve_instance(
         elif solver_name == 'appsi_highs':
             pass
 
-        # TODO: still need to add gurobi parameters?  (and move them all to .toml...?)
-
         # dev note:  The handling of suffixes is pretty weak.  As of today 4/4/2024, highspy crashes if
         #            the keyword suffixes is passed in (regardless if there are any requested).  CBC only
         #            supports some.  Perhaps in the future, this will be easier.  For now, we need a different
         #            solve command for highspy and no suffixes because it works so well.
         if solver_suffixes:
             solver_suffixes = set(solver_suffixes)
-            legit_suffixes = {'duals', 'slack', 'rc'}
+            legit_suffixes = {'dual', 'slack', 'rc'}
             bad_apples = solver_suffixes - legit_suffixes
             solver_suffixes &= legit_suffixes
             if bad_apples:
@@ -283,13 +268,18 @@ def solve_instance(
                     'Solver suffix %s is not in pyomo standards (see pyomo dox).  Removed',
                     bad_apples,
                 )
+            # convert back to list...
+            solver_suffixes = list(solver_suffixes)
         else:
             solver_suffixes = []
+        result: SolverResults | None = None
         try:
-            if solver_name == 'appsi_highs' and not solver_suffixes:
-                result: SolverResults = optimizer.solve(instance, tee=True)
-            else:  # we can try it...
-                result: SolverResults = optimizer.solve(instance, suffixes=solver_suffixes, tee=True)
+            # currently, the highs solver call will puke if the suffixes are passed, so we need to
+            # differentiate...
+            if solver_name == 'appsi_highs':
+                result = optimizer.solve(instance)
+            else:
+                result = optimizer.solve(instance, suffixes=solver_suffixes)
         except RuntimeError as error:
             logger.error('Solver failed to solve and returned an error: %s', error)
             logger.error(
@@ -335,40 +325,40 @@ def check_solve_status(result: SolverResults) -> tuple[bool, str]:
         return False, f'{soln.Status} was returned from solve'
 
 
-def handle_results(instance: TemoaModel, results, options: TemoaConfig):
+def handle_results(
+    instance: TemoaModel, results, config: TemoaConfig, append=False, iteration=None
+):
     hack = time()
-    if not options.silent:
+    if not config.silent:
         msg = '[        ] Calculating reporting variables and formatting results.'
         # yield 'Calculating reporting variables and formatting results.'
         SE.write(msg)
         SE.flush()
 
-    # output_stream = pformat_results(instance, results, options)
-    table_writer = TableWriter(config=options)
-    if options.save_duals:
-        table_writer.write_results(M=instance, results=results)
+    table_writer = TableWriter(config=config)
+    if config.save_duals:
+        table_writer.write_results(
+            M=instance, results_with_duals=results, append=append, iteration=iteration
+        )
     else:
-        table_writer.write_results(M=instance)
+        table_writer.write_results(M=instance, append=append, iteration=iteration)
 
-    if options.save_excel:
-        temp_scenario = set()
-        temp_scenario.add(options.scenario)
-        # make_excel function imported near the top
-        excel_filename = options.output_path / options.scenario
-        make_excel(str(options.output_database), excel_filename, temp_scenario)
-
-    if not options.silent:
-        SE.write('\r[%8.2f] Results processed.\n' % (time() - hack))
+    if not config.silent:
+        SE.write(
+            '\r[%8.2f] Results processed.                                    \n' % (time() - hack)
+        )
         SE.flush()
 
-    # if options.stream_output:
-    #     print(output_stream.getvalue())
+    if config.save_excel:
+        scenario_name = (
+            config.scenario + f'-{iteration}' if iteration is not None else config.scenario
+        )
+        temp_scenario = set()
+        temp_scenario.add(scenario_name)
+        excel_filename = config.output_path / scenario_name
+        make_excel(str(config.output_database), excel_filename, temp_scenario)
+
     # normal (non-MGA) run will have a TotalCost as the OBJ:
     if hasattr(instance, 'TotalCost'):
         logger.info('TotalCost value: %0.2f', value(instance.TotalCost))
-    # MGA runs should have either a FirstObj or SecondObj
-    if hasattr(instance, 'FirstObj'):
-        logger.info('MGA First Obj value: %0.2f', value(instance.FirstObj))
-    elif hasattr(instance, 'SecondObj'):
-        logger.info('MGA Second Obj value: %0.2f', value(instance.SecondObj))
     return

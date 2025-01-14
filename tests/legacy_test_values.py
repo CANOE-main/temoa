@@ -30,7 +30,7 @@ received this license file.  If not, see <http://www.gnu.org/licenses/>.
 from enum import Enum
 
 
-class TestVals(Enum):
+class ExpectedVals(Enum):
     OBJ_VALUE = 'obj_value'
     EFF_DOMAIN_SIZE = 'eff_domain_size'
     EFF_INDEX_SIZE = 'eff_index_size'
@@ -41,17 +41,17 @@ class TestVals(Enum):
 # these values were captured on base level runs of the .dat files in the tests/testing_data folder
 test_vals = {
     'test_system': {
-        TestVals.OBJ_VALUE: 491977.7000753,
-        TestVals.EFF_DOMAIN_SIZE: 30720,
-        TestVals.EFF_INDEX_SIZE: 74,
-        TestVals.CONSTR_COUNT: 2826,
-        TestVals.VAR_COUNT: 1904,
+        ExpectedVals.OBJ_VALUE: 491977.7000753,
+        ExpectedVals.EFF_DOMAIN_SIZE: 30720,
+        ExpectedVals.EFF_INDEX_SIZE: 74,
+        ExpectedVals.CONSTR_COUNT: 2826,
+        ExpectedVals.VAR_COUNT: 1904,
     },
     'utopia': {
-        TestVals.OBJ_VALUE: 36535.631200,
-        TestVals.EFF_DOMAIN_SIZE: 12312,
-        TestVals.EFF_INDEX_SIZE: 64,
-        TestVals.CONSTR_COUNT: 1452,  # reduced 3/27:  unlim_cap techs now employed
-        TestVals.VAR_COUNT: 1055,  # reduced 3/27:  unlim_cap techs now employed
+        ExpectedVals.OBJ_VALUE: 36535.631200,
+        ExpectedVals.EFF_DOMAIN_SIZE: 12312,
+        ExpectedVals.EFF_INDEX_SIZE: 64,
+        ExpectedVals.CONSTR_COUNT: 1452,  # reduced 3/27:  unlim_cap techs now employed
+        ExpectedVals.VAR_COUNT: 1055,  # reduced 3/27:  unlim_cap techs now employed
     },
 }

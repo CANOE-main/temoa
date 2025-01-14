@@ -28,11 +28,13 @@ received this license file.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import pyomo.environ as pyo
+import pytest
 
 from temoa.temoa_model.model_checking.validators import (
     linked_region_check,
     region_check,
     region_group_check,
+    no_slash_or_pipe,
 )
 
 
@@ -93,3 +95,17 @@ def test_region_group_check():
         assert region_group_check(m, name), f'This name should have been good: {name}'
     for name in bad_names:
         assert not region_group_check(m, name), f'This name should have failed: {name}'
+
+
+params = [
+    ('dogfood', True),
+    ('cat/dog', False),
+    ('cat|dog', False),
+    ('123/45', False),
+    (678, True),
+]
+
+
+@pytest.mark.parametrize('value, expected', params)
+def test_no_slash(value, expected):
+    assert no_slash_or_pipe(M=None, element=value) == expected

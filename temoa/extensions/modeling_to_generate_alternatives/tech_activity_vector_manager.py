@@ -28,6 +28,7 @@ Created on:  4/16/24
 import queue
 import sqlite3
 from collections import defaultdict
+from collections.abc import Iterator
 from logging import getLogger
 from pathlib import Path
 from queue import Queue
@@ -37,8 +38,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from pyomo.core import Expression, Var, value, Objective, quicksum
 
-from definitions import PROJECT_ROOT
+from definitions import get_OUTPUT_PATH
 from temoa.extensions.modeling_to_generate_alternatives.hull import Hull
+from temoa.extensions.modeling_to_generate_alternatives.mga_constants import MgaWeighting
 from temoa.extensions.modeling_to_generate_alternatives.vector_manager import VectorManager
 from temoa.temoa_model.temoa_model import TemoaModel
 
@@ -46,6 +48,8 @@ logger = getLogger(__name__)
 
 
 class DefaultItem:
+    """A dummy class just to hold items that will have a reasonable __str__ and __repr__"""
+
     def __init__(self, name: str):
         self.name = name
 
@@ -57,22 +61,25 @@ class DefaultItem:
 
 
 # just a convenience to have something other than a None item for placeholder
+# for use in categories listings for categories that are empty in the model
 default_cat = DefaultItem('DEFAULT')
 
 
-class TechActivityVectors(VectorManager):
+class TechActivityVectorManager(VectorManager):
     def __init__(
         self,
         conn: sqlite3.Connection,
         base_model: TemoaModel,
+        weighting: MgaWeighting,
         optimal_cost: float,
         cost_relaxation: float,
     ):
-        self.comleted_solves = 0
+        self.completed_solves = 0
         self.conn = conn
         self.base_model = base_model
         self.optimal_cost = optimal_cost
         self.cost_relaxation = cost_relaxation
+        self.generation_index = 1  # index of how many models generated to couple inputs-outputs
 
         # {category : [technology, ...]}
         # the number of keys in this are the dimension of the hull
@@ -87,6 +94,10 @@ class TechActivityVectors(VectorManager):
 
         self.coefficient_vector_queue: Queue[np.ndarray] = Queue()
 
+        if weighting != MgaWeighting.HULL_EXPANSION:
+            raise NotImplementedError(
+                'Tech Activity currently only works with Hull Expansion weighting'
+            )
         self.hull_points: np.ndarray | None = None
         self.hull: Hull | None = None
 
@@ -132,8 +143,16 @@ class TechActivityVectors(VectorManager):
             self.variable_index_mapping[tech][self.base_model.V_FlowOutAnnual.name].append(idx)
         logger.debug('Catalogued %d Technology Variables', sum(self.technology_size.values()))
 
-    def random_model(self):
+    @property
+    def expired(self) -> bool:
+        return False  # this Manager can always generate more...
+
+    def group_variable_names(self, tech) -> list[Var]:
+        return list(self.category_mapping.keys())
+
+    def random_input_vector_model(self) -> TemoaModel:
         new_model = self.base_model.clone()
+        new_model.name = self.new_model_name()
         var_vec = self.var_vector(new_model)
         coeffs = np.random.random(len(var_vec))
         coeffs /= sum(coeffs)
@@ -141,7 +160,7 @@ class TechActivityVectors(VectorManager):
         new_model.obj = Objective(expr=obj_expr)
         return new_model
 
-    def instance_generator(self, config) -> TemoaModel:
+    def model_generator(self) -> Iterator[TemoaModel]:
         """
         Generate instances to solve.  Start with the basis vectors, then ...
         :return: a TemoaModel instance
@@ -151,36 +170,38 @@ class TechActivityVectors(VectorManager):
         obj_vector = self._make_basis_objective_vector(new_model)
         while obj_vector is not None:
             new_model.obj = Objective(expr=obj_vector)
+            new_model.name = self.new_model_name()
             yield new_model
             new_model = self.base_model.clone()
             obj_vector = self._make_basis_objective_vector(new_model)
+
         # if asking for more, we *should* have enough data to create a good hull now...
-
-        while self.comleted_solves <= 2 * len(self.category_mapping) * 0.9:
-            yield 'waiting'  # sentinel that there are no currently available instances
-
-        if len(self.hull_points) < 1.5 * len(self.category_mapping):
-            # we are at risk of not having enough solves to make a hull.  We should have 2x category_mapping
-            logger.error(
-                'Not enough successful initial solves to make a hull.  Pts: %d, categories: %d',
-                len(self.hull_points),
-                len(self.category_mapping),
+        while self.completed_solves <= 2 * len(self.category_mapping):
+            # some of the basis vectors must have "crashed" or timed out...
+            # supply random vectors until we have sufficient number of solved models to make hull
+            logger.info(
+                'Adding random vectors to augment the basis.  Some basis solves may have crashed...'
             )
-            logger.error(
-                'We should have 2 points for each dimension.  Were some basis solves unsuccessful?'
-            )
-            raise RuntimeError('Not enough successful initial solves to make a hull.  See log.')
+            yield self.random_input_vector_model()
 
         logger.info('Generating hull points')
         self.regenerate_hull()
         # now we can run until told to quit or fail to make a new vector
         while True:
             new_model = self.base_model.clone()
+            new_model.name = self.new_model_name()
             v = self._next_objective_vector(M=new_model)
             if v is None:
                 yield None
             new_model.obj = Objective(expr=v)
             yield new_model
+
+    def new_model_name(self) -> str:
+        """produce a new name with updated index suffix"""
+        base_name = self.base_model.name.split('-')[0]
+        new_name = '-'.join((base_name, str(self.generation_index)))
+        self.generation_index += 1
+        return new_name
 
     def process_results(self, M: TemoaModel):
         """
@@ -188,7 +209,7 @@ class TechActivityVectors(VectorManager):
         :param M:
         :return: None
         """
-        self.comleted_solves += 1
+        self.completed_solves += 1
         res = []
         for cat in self.category_mapping:
             element = 0
@@ -202,7 +223,7 @@ class TechActivityVectors(VectorManager):
                     )
             res.append(element)
 
-        # add it to the points
+        # add it to the hull points
         hull_point = np.array(res)
         if self.hull_points is None:
             self.hull_points = np.atleast_2d(hull_point)
@@ -237,20 +258,18 @@ class TechActivityVectors(VectorManager):
 
         # verify a unit vector
         err = abs(abs(sum(coeffs)) - 1)
-
-        assert err < 1e-6, 'some problem with unit vector'
+        assert err < 1e-6, 'unit vector size error'
         expr = sum(c * v for v, c in zip(vars, coeffs) if c != 0)
         return expr
 
     def _next_objective_vector(self, M: TemoaModel) -> Expression | None:
         if self.coefficient_vector_queue.qsize() <= 3:
-            print('running low...refreshing the vectors')
-            logger.info('running low...refreshing the vectors')
+            logger.info('running low on input vectors...  refreshing the vectors with new hull')
             self.regenerate_hull()
         if not self.coefficient_vector_queue or self.input_vectors_available() == 0:
             return None
         vector = self.coefficient_vector_queue.get()
-        # print(vector)
+
         # translate the norm vector into coefficients
         coeffs = []
         for idx, cat in enumerate(self.category_mapping):
@@ -266,7 +285,7 @@ class TechActivityVectors(VectorManager):
         obj_vars = self.var_vector(M)
 
         assert len(obj_vars) == len(coeffs)
-        return sum(c * v for v, c in zip(obj_vars, coeffs))
+        return quicksum(c * v for v, c in zip(obj_vars, coeffs))
 
     def var_vector(self, M: TemoaModel) -> list[Var]:
         """Produce a properly sequenced array of variables from the current model for use in obj vector"""
@@ -289,9 +308,12 @@ class TechActivityVectors(VectorManager):
         self.hull = Hull(self.hull_points)
         fresh_vecs = self.hull.get_all_norms()
         np.random.shuffle(fresh_vecs)
-        print(f'   made {len(fresh_vecs)} fresh vectors')
-        print('   huge at: ', self.hull.cv_hull.volume)
-        print(f'   rejection frac: {self.hull.norm_rejection_proportion}')
+        logger.info('Made %d fresh vectors', len(fresh_vecs))
+        logger.info('Current Hull volume:  %0.2f', self.hull.cv_hull.volume)
+        logger.info(
+            'Current new vector rejection rate (for collinearity):  %0.2f',
+            self.hull.norm_rejection_proportion,
+        )
         self.load_normals(fresh_vecs)
 
     def load_normals(self, normals: np.array):
@@ -300,9 +322,6 @@ class TechActivityVectors(VectorManager):
 
     def input_vectors_available(self) -> int:
         return self.coefficient_vector_queue.qsize()
-
-    def tech_variables(self, tech) -> list[Var]:
-        return self.technology_size.get(tech, [])
 
     @staticmethod
     def _generate_basis_coefficients(category_mapping: dict, technology_size: dict) -> Queue:
@@ -332,15 +351,21 @@ class TechActivityVectors(VectorManager):
         return q
 
     def tracker(self):
-        if len(self.hull_points) > 10:
+        """
+        A little function to track the size of the hull, after it is built initially
+        Note:  This hull is a "throw away" and only used for volume calc, but it is pretty quick
+        """
+        if self.hull is not None:  # don't try until after first hull is built
             hull = Hull(self.hull_points)
             volume = hull.volume
             logger.info(f'Tracking hull at {volume}')
             self.perf_data.update({len(self.hull_points): volume})
 
     def finalize_tracker(self):
-        fout = Path(PROJECT_ROOT, 'output_files', 'hull_perf.png')
+        fout = Path(get_OUTPUT_PATH(), 'hull_performance.png')
         pts = sorted(self.perf_data.keys())
         y = [self.perf_data[pt] for pt in pts]
         plt.plot(pts, y)
+        plt.xlabel('Iteration')
+        plt.ylabel('N-Dimensional Hull Volume')
         plt.savefig(str(fout))

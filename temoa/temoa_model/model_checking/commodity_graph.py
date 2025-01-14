@@ -106,7 +106,6 @@ def generate_graph(
     dg = make_nx_graph(all_edges, edge_colors, edge_weights, layers)
 
     # loop finder...
-    # TODO:  This segment of code might fit better in the network manager?
     try:
         cycles = nx.simple_cycles(G=dg)
         for cycle in cycles:
@@ -216,17 +215,3 @@ def make_nx_graph(connections, edge_colors, edge_weights, layer_map) -> nx.Multi
             size=edge_weights.get((ic, tech, oc), 1),
         )
     return dg
-
-
-# quick test...  Not straight-forward on how to include this in unit tests...
-if __name__ == '__main__':
-    connex = [('ethos', 'tech_1', 2), (2, 'tech_2', 3)]
-    layers = {'ethos': 1, 2: 2, 3: 3}
-    _graph_connections(
-        connex,
-        layers,
-        edge_colors={},
-        edge_weights={},
-        file_label='test_network_graph',
-        output_path=Path('.'),
-    )

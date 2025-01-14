@@ -1,0 +1,30 @@
+# A container for solver options
+# the top level solver name in brackets should align with the solver name in the config.toml
+
+num_workers = 11
+
+[gurobi]
+
+Method= 2  # Barrier ONLY
+Threads= 20  # per solver instance
+BarConvTol = 1.0e-2  # Relative Barrier Tolerance primal-dual
+FeasibilityTol= 1.0e-2  # pretty loose
+Crossover= 0  # Disabled
+TimeLimit= 18000  # 5 hrs
+
+# regarding BarConvTol:  https://www.gurobi.com/documentation/current/refman/barrier_logging.html
+# note that ref above seems to imply that FeasibilyTol is NOT used when using barrier only...?
+
+# for records ...
+# 'LogFile': './my_gurobi_log.log',
+# 'LPWarmStart': 2,  # pass basis
+
+[cbc]
+primalT = 1e-3
+dualT = 1e-3
+# tbd
+
+[appsi_highs]
+threads = 2
+primal_feasibility_tolerance = 1e-3
+dual_feasibility_tolerance = 1e-3

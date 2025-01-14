@@ -37,10 +37,16 @@ def mock_model():
     """let's see how tough this is to work with..."""
     M = ConcreteModel('mock')
     M.tech_uncap = Set(initialize=['refinery'])
-    M.time_future = Set(initialize=[2020, 2010, 2020, 2030])
+    M.time_optimize = Set(initialize=[2000, 2010, 2020, 2030])
     M.LifetimeProcess = Param(Any, Any, Any, initialize={('CA', 'refinery', 2020): 30})
     M.Efficiency = Param(Any, Any, Any, Any, Any, initialize={('CA', 0, 'refinery', 2020, 0): 1.0})
+
     M.ExistingCapacity = Param(Any, Any, Any, mutable=True)
+    M.CostFixed = Param(Any, Any, Any, Any, mutable=True)
+    M.CostInvest = Param(Any, Any, Any, mutable=True)
+    M.CostVariable = Param(Any, Any, Any, Any, mutable=True)
+    M.MaxCapacity = Param(Any, Any, Any, mutable=True)
+    M.MinCapacity = Param(Any, Any, Any, mutable=True)
     return M
 
 
@@ -51,21 +57,33 @@ def test_check_tech_uncap(mock_model):
     :return:
     """
     M = mock_model
-    M.CostFixed = Param(Any, Any, Any, Any, mutable=True)
-    M.CostInvest = Param(Any, Any, Any, mutable=True)
-    M.CostVariable = Param(Any, Any, Any, Any, mutable=True)
-    M.MaxCapacity = Param(Any, Any, Any, mutable=True)
-    M.MinCapacity = Param(Any, Any, Any, mutable=True)
+
     assert check_tech_uncap(M), 'should pass for no fixed/invest/variable costs'
     M.CostVariable[('CA', 2020, 'refinery', 2020)] = 42
-    assert not check_tech_uncap(M), 'should fail, only 1 of 4 periods has var cost'
+    assert not check_tech_uncap(M), 'should fail.  Has cost in 2020, but missing in 2030'
+    # add in missing cost...
     M.CostVariable[('CA', 2030, 'refinery', 2020)] = 42
-    M.CostVariable[('CA', 2040, 'refinery', 2020)] = 42
     assert check_tech_uncap(M), 'should pass for all periods having var cost'
-    M.CostVariable.clear()
+
+
+def test_detect_fixed_cost(mock_model):
+    """
+    test the fault checking for unlimited capacity techs
+    :param mock_model:
+    :return:
+    """
+    M = mock_model
     assert check_tech_uncap(M), 'should have cleared and passed again'
     M.CostFixed[('CA', 2020, 'refinery', 2020)] = 42
     assert not check_tech_uncap(M), 'should fail with any fixed cost'
-    M.CostFixed.clear()
+
+
+def test_detect_invest_cost(mock_model):
+    """
+    test the fault checking for unlimited capacity techs
+    :param mock_model:
+    :return:
+    """
+    M = mock_model
     M.CostInvest['CA', 'refinery', 2020] = 42
     assert not check_tech_uncap(M), 'should fail with any investment cost'
