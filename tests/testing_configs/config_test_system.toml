@@ -2,12 +2,12 @@
 scenario = "test run"
 scenario_mode = "perfect_foresight"
 
-input_database = "testing_outputs/test_system.sqlite"
-output_database = "testing_outputs/test_system.sqlite"
+input_database = "tests/testing_outputs/test_system.sqlite"
+output_database = "tests/testing_outputs/test_system.sqlite"
 neos = false
 
 # solver
-solver_name = "cbc"
+solver_name = "gurobi"
 
 # generate an excel file in the output_files folder
 save_excel = false
