@@ -1223,7 +1223,7 @@ def CommodityBalanceAnnualConstraintIndices(M: 'TemoaModel'):
         # r in this line includes interregional transfer combinations (not needed).
         if r in M.regions  # this line ensures only the regions are included.
         for t, v in M.commodityUStreamProcess[r, p, o]
-        if (r, t) not in M.tech_storage and t in M.tech_annual
+        if (r, t) not in M.tech_storage and t in M.tech_annual # Why not in storage?
     )
 
     return indices

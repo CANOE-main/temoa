@@ -108,7 +108,7 @@ class TechCapacityVectorManager(VectorManager):
 
         # monitor/report the size of the hull for each new point.  May cause some slowdown due to
         # hull re-computes, but it seems quite fast RN.
-        self.hull_monitor = True
+        self.hull_monitor = False
         self.perf_data = {}
 
     def initialize(self) -> None:
@@ -134,7 +134,7 @@ class TechCapacityVectorManager(VectorManager):
 
         # now pull new capacity variables
         for idx in self.base_model.NewCapacityVar_rtv:
-            if idx[2] not in self.base_model.time_future: continue
+            if idx[2] not in self.base_model.time_optimize: continue
             tech = idx[1]
             if tech not in self.variable_index_mapping.keys(): continue
             self.technology_size[tech] += 1
@@ -174,7 +174,8 @@ class TechCapacityVectorManager(VectorManager):
             obj_vector = self._make_basis_objective_vector(new_model)
 
         # if asking for more, we *should* have enough data to create a good hull now...
-        while self.completed_solves <= 2 * len(self.category_mapping):
+        # while self.completed_solves <= 2 * len(self.category_mapping):
+        while True:
             # some of the basis vectors must have "crashed" or timed out...
             # supply random vectors until we have sufficient number of solved models to make hull
             logger.info(

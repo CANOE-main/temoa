@@ -373,9 +373,9 @@ def handle_results(instance: TemoaModel, results, options: TemoaConfig):
         SE.flush()
 
     try:
-        from playsound import playsound
+        from playsound import playsound # doesn't work if imported outside... confounding
         playsound('data_files/notifications/NYTimes Crossword Victory Song.mp3')
-    except: pass # not exactly critical
+    except: pass # not exactly critical so dont break things if it doesnt work lol
 
     # if options.stream_output:
     #     print(output_stream.getvalue())

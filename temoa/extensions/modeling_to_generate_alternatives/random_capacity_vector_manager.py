@@ -107,12 +107,14 @@ class RandomCapacityVectorManager(VectorManager):
 
         self.initialize()
         self.basis_coefficients: Queue[np.ndarray] = self._generate_basis_coefficients(
-            self.category_mapping, self.technology_size
+            self.category_mapping, self.technology_size, self.include_min, self.include_max
         )
 
         # monitor/report the size of the hull for each new point.  May cause some slowdown due to
         # hull re-computes, but it seems quite fast RN.
-        self.hull_monitor = False
+        self.hull_monitor = False # -> Only works for very small number of categories, scales poorly
+        self.include_min = False # -> These runs can be very unstable due to degenerate solutions
+        self.include_max = True # -> These runs can also be a bit unstable due to flat solution spaces
         self.perf_data = {}
 
     def initialize(self) -> None:
@@ -128,7 +130,7 @@ class RandomCapacityVectorManager(VectorManager):
         for row in raw:
             cat, tech = row
             if cat in {None, ''}:
-                #cat = default_cat # TODO Why?
+                #cat = default_cat # TODO Why? This would clump every uncategorised tech into one giant category for MGA
                 continue
             if tech in techs_implemented:
                 self.category_mapping[cat].append(tech)
@@ -211,9 +213,7 @@ class RandomCapacityVectorManager(VectorManager):
         print("Rerunning base model")
         yield new_model """
 
-        include_bases = True
-
-        if include_bases:
+        if (self.include_min or self.include_max):
             # traverse the basis vectors first
             new_model = self.base_model.clone()
             obj_vector = self._make_basis_objective_vector(new_model)
@@ -419,7 +419,12 @@ class RandomCapacityVectorManager(VectorManager):
         return self.coefficient_vector_queue.qsize()
 
     @staticmethod
-    def _generate_basis_coefficients(category_mapping: dict, technology_size: dict) -> Queue:
+    def _generate_basis_coefficients (
+        category_mapping: dict,
+        technology_size: dict,
+        include_min: bool,
+        include_max: bool
+    ) -> Queue:
         # Sequentially build the coefficient vector in the order of the categories and associated techs
         q = Queue()
         for selected_cat in category_mapping:
@@ -440,8 +445,8 @@ class RandomCapacityVectorManager(VectorManager):
 
             entry = np.array(res)
             entry = entry / np.array(np.sum(entry))
-            q.put(entry)  # high value
-            q.put(-entry)  # low value
+            if include_min: q.put(entry)  # +ve value -> minimisation
+            if include_max: q.put(-entry)  # -ve value -> maximisation
 
         return q
 

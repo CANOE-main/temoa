@@ -54,7 +54,8 @@ class TemoaConfig:
         price_check: bool = True,
         source_trace: bool = False,
         plot_commodity_network: bool = False,
-    ):
+    ):  
+        
         self.scenario = scenario
         # capture the operating mode
         self.scenario_mode: TemoaMode

@@ -180,17 +180,18 @@ def make_excel(ifile, ofile: Path, scenario):
     emiss = df_emissions_raw['emis_comm'].unique()
     sector = df_capacity['sector'].unique()
 
+    # TODO pyam not working with current version of pandas
     # adding aggregates of emissions for each species
-    df.aggregate([f'Emissions|{q}' for q in emiss], append=True)
+    #df.aggregate([f'Emissions|{q}' for q in emiss], append=True)
 
     # adding aggregates of activity/capacity for each sector
     prod = itertools.product(['Activity', 'Capacity'], sector)
-    df.aggregate([f'{t}|{s}' for t, s in prod], append=True)
+    #df.aggregate([f'{t}|{s}' for t, s in prod], append=True)
 
     # write IamDataFrame to xlsx
     base_name = ofile.name.split('.')[0]
     excel_pyam_filename = ofile.with_name(base_name + '_pyam.xlsx')
-    df.to_excel(excel_pyam_filename)
+    #df.to_excel(excel_pyam_filename)
 
     cur.close()
     con.close()

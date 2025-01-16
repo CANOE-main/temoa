@@ -676,10 +676,10 @@ class TableWriter:
                 continue
 
             var_cost = value(M.CostVariable[r, p, t, v])
-            undiscounted_var_cost = activity * var_cost * value(M.PeriodLength[p])
+            undiscounted_var_cost = activity * var_cost * value(MPL[r, p, t, v])
 
             model_var_cost = temoa_rules.fixed_or_variable_cost(
-                activity, var_cost, value(M.PeriodLength[p]), GDR=GDR, P_0=p_0, p=p
+                activity, var_cost, value(MPL[r, p, t, v]), GDR=GDR, P_0=p_0, p=p
             )
             if '-' in r:
                 exchange_costs.add_cost_record(
@@ -772,12 +772,12 @@ class TableWriter:
                 flows[ei] = 0.0
                 continue
             undiscounted_emiss_cost = (
-                flows[ei] * M.CostEmission[ei.r, ei.p, ei.e] * M.PeriodLength[ei.p]
+                flows[ei] * M.CostEmission[ei.r, ei.p, ei.e] * M.ModelProcessLife[ei.r, ei.p, ei.t, ei.v]
             )
             discounted_emiss_cost = temoa_rules.fixed_or_variable_cost(
                 cap_or_flow=flows[ei],
                 cost_factor=M.CostEmission[ei.r, ei.p, ei.e],
-                process_lifetime=M.PeriodLength[ei.p],
+                process_lifetime= M.ModelProcessLife[ei.r, ei.p, ei.t, ei.v],
                 GDR=GDR,
                 P_0=p_0,
                 p=ei.p,
