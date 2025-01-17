@@ -1205,8 +1205,6 @@ def InterSeasonStorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
         d_prev = M.time_of_day.prev(d)
         expr = M.V_StorageLevel[r, p, s, d, t, v] == M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy
 
-    print(expr)
-
     return expr
 
 
