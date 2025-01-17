@@ -1105,7 +1105,7 @@ def RegionalExchangeCapacity_Constraint(M: 'TemoaModel', r_e, r_i, p, t, v):
     return expr
 
 
-def StorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
+def InterSeasonStorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
     r"""
 
     This constraint tracks the storage charge level (:math:`\textbf{SL}_{r, p, s, d, t, v}`)
@@ -1183,11 +1183,12 @@ def StorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
     # the last time slice of the last season must zero out
     if d == M.time_of_day.last() and s == M.time_season.last():
         d_prev = M.time_of_day.prev(d)
-        expr = M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy == M.V_StorageInit[r, t, v]
+        expr = M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy == M.V_StorageLevel[r, p, s, d, t, v] # M.V_StorageInit[r, t, v]
 
     # First time slice of the first season (i.e., start of period), starts at StorageInit level
     elif d == M.time_of_day.first() and s == M.time_season.first():
-        expr = M.V_StorageLevel[r, p, s, d, t, v] == M.V_StorageInit[r, t, v] + stored_energy
+        d_last = M.time_of_day.last()
+        expr = M.V_StorageLevel[r, p, s, d, t, v] == M.V_StorageLevel[r, p, s, d_last, t, v] + stored_energy # M.V_StorageInit[r, t, v] + stored_energy
 
     # First time slice of any season that is NOT the first season
     elif d == M.time_of_day.first():
@@ -1200,6 +1201,51 @@ def StorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
 
     # Any time slice that is NOT covered above (i.e., not the time slice ending
     # the period, or the first time slice of any season)
+    else:
+        d_prev = M.time_of_day.prev(d)
+        expr = (
+            M.V_StorageLevel[r, p, s, d, t, v]
+            == M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy
+        )
+
+    return expr
+
+
+def IntraSeasonStorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
+    r"""
+    This variant of the storage energy constraint, used by default, loops the state
+    of storage within each season rather than carrying it between seasons. Necessary
+    when the order of seasons in the database is not representative of their actual
+    chronological sequence.
+    """
+
+    # This is the sum of all input=i sent TO storage tech t of vintage v with
+    # output=o in p,s,d
+    charge = sum(
+        M.V_FlowIn[r, p, s, d, S_i, t, v, S_o] * M.Efficiency[r, S_i, t, v, S_o]
+        for S_i in M.processInputs[r, p, t, v]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+    )
+
+    # This is the sum of all output=o withdrawn FROM storage tech t of vintage v
+    # with input=i in p,s,d
+    discharge = sum(
+        M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
+        for S_o in M.processOutputs[r, p, t, v]
+        for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
+    )
+
+    stored_energy = charge - discharge
+
+    # First time slice of any season
+    if d == M.time_of_day.first():
+        d_last = M.time_of_day.last()
+        expr = (
+            M.V_StorageLevel[r, p, s, d, t, v]
+            == M.V_StorageLevel[r, p, s, d_last, t, v] + stored_energy
+        )
+
+    # Any other time slice in a season
     else:
         d_prev = M.time_of_day.prev(d)
         expr = (

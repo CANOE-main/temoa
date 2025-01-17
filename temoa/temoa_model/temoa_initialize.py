@@ -1251,10 +1251,11 @@ def StorageInitIndices(M: 'TemoaModel'):
     return indices
 
 
-def StorageInitConstraintIndices(M: 'TemoaModel'):
-    indices = set((r, t, v) for r, t, v in M.StorageInitFrac.sparse_iterkeys())
+# StorageInit needs an overhaul
+# def StorageInitConstraintIndices(M: 'TemoaModel'):
+#     indices = set((r, t, v) for r, t, v in M.StorageInitFrac.sparse_iterkeys())
 
-    return indices
+#     return indices
 
 
 def RampConstraintDayIndices(M: 'TemoaModel'):

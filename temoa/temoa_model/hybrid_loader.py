@@ -382,6 +382,10 @@ class HybridLoader:
         raw = cur.execute('SELECT season FROM main.TimeSeason ORDER BY sequence').fetchall()
         load_element(M.time_season, raw)
 
+        # interseason_storage
+        raw = cur.execute("SELECT value from MetaData WHERE element == 'interseason_storage'").fetchall()
+        if len(raw) > 0 and raw[0][0] == 1: TemoaModel.interseason_storage = True # Ugly but robust
+
         # myopic_base_year
         if mi:
             raw = cur.execute(

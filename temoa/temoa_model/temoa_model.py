@@ -60,6 +60,10 @@ class TemoaModel(AbstractModel):
     # this is used in several places outside this class, and this provides no-build access to it
     default_lifetime_tech = 40
 
+    # Should storage be allowed to store between seasons?
+    # by default we loop storage states within each season
+    interseason_storage = False
+
     def __init__(M, *args, **kwargs):
         AbstractModel.__init__(M, *args, **kwargs)
 
@@ -67,6 +71,8 @@ class TemoaModel(AbstractModel):
         #       Internally used Data Containers        #
         #       (not formal model elements)            #
         ################################################
+
+        
 
         # Dev Note:  The triple-quotes UNDER the items below pop up as dox in most IDEs
         M.processInputs = dict()
@@ -453,8 +459,9 @@ class TemoaModel(AbstractModel):
         M.StorageDuration = Param(M.regions, M.tech_storage, default=4)
         # Initial storage charge level, expressed as fraction of full energy capacity.
         # If the parameter is not defined, the model optimizes the initial storage charge level.
-        M.StorageInit_rtv = Set(dimen=3, initialize=StorageInitIndices)
-        M.StorageInitFrac = Param(M.StorageInit_rtv)
+        # Dev note: needs overhaul
+        # M.StorageInit_rtv = Set(dimen=3, initialize=StorageInitIndices)
+        # M.StorageInitFrac = Param(M.StorageInit_rtv)
 
         M.MyopicBaseyear = Param(default=0)
 
@@ -495,7 +502,7 @@ class TemoaModel(AbstractModel):
 
         M.StorageLevel_rpsdtv = Set(dimen=6, initialize=StorageVariableIndices)
         M.V_StorageLevel = Var(M.StorageLevel_rpsdtv, domain=NonNegativeReals)
-        M.V_StorageInit = Var(M.StorageInit_rtv, domain=NonNegativeReals)
+        # M.V_StorageInit = Var(M.StorageInit_rtv, domain=NonNegativeReals) # Dev note: needs overhaul
 
         # Derived decision variables
 
@@ -603,9 +610,15 @@ class TemoaModel(AbstractModel):
         M.progress_marker_6 = BuildAction(['Starting Storage Constraints'], rule=progress_check)
         # This set works for all the storage-related constraints
         M.StorageConstraints_rpsdtv = Set(dimen=6, initialize=StorageVariableIndices)
-        M.StorageEnergyConstraint = Constraint(
-            M.StorageConstraints_rpsdtv, rule=StorageEnergy_Constraint
-        )
+
+        if TemoaModel.interseason_storage:
+            M.StorageEnergyConstraint = Constraint(
+                M.StorageConstraints_rpsdtv, rule=InterSeasonStorageEnergy_Constraint
+            )
+        else:
+            M.StorageEnergyConstraint = Constraint(
+                M.StorageConstraints_rpsdtv, rule=IntraSeasonStorageEnergy_Constraint
+            )
 
         # We make use of this following set in some of the storage constraints.
         # Pre-computing it is considerably faster.
@@ -627,10 +640,11 @@ class TemoaModel(AbstractModel):
             M.StorageConstraints_rpsdtv, rule=StorageThroughput_Constraint
         )
 
-        M.StorageInitConstraint_rtv = Set(dimen=2, initialize=StorageInitConstraintIndices)
-        M.StorageInitConstraint = Constraint(
-            M.StorageInitConstraint_rtv, rule=StorageInit_Constraint
-        )
+        # StorageInit needs an overhaul
+        # M.StorageInitConstraint_rtv = Set(dimen=2, initialize=StorageInitConstraintIndices)
+        # M.StorageInitConstraint = Constraint(
+        #     M.StorageInitConstraint_rtv, rule=StorageInit_Constraint
+        # )
 
         M.RampConstraintDay_rpsdtv = Set(dimen=6, initialize=RampConstraintDayIndices)
         M.RampUpConstraintDay = Constraint(M.RampConstraintDay_rpsdtv, rule=RampUpDay_Constraint)
