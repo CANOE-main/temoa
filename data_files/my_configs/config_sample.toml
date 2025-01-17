@@ -19,13 +19,13 @@ scenario = "zulu"
 scenario_mode = "perfect_foresight"
 
 # Input database (Mandatory)
-input_database = "data_files/example_dbs/utopia.sqlite"
+input_database = "data_files/storageville.sqlite"
 
 # Output file (Mandatory)
 # The output file must be an existing .sqlite file
 # For Pefrect Foresight, the user may target the same input file or a separate /
 # copied sqlite file in a different location.  Myopic, MGA require that input_database = output_database
-output_database = "data_files/example_dbs/utopia.sqlite"
+output_database = "data_files/storageville.sqlite"
 
 # ------------------------------------
 #        DATA / MODEL CHECKS
@@ -42,7 +42,7 @@ price_check = true
 # recommended to ensure proper performance.  Results are reported in log file
 # This requires that source commodities be marked with 's' in Commodity table
 # This is required for Myopic runs
-source_trace = true
+source_trace = false
 
 # Produce HTML files for Commodity Networks.  Requires source_trace above
 plot_commodity_network = true

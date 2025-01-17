@@ -460,8 +460,7 @@ class TemoaModel(AbstractModel):
         # Initial storage charge level, expressed as fraction of full energy capacity.
         # If the parameter is not defined, the model optimizes the initial storage charge level.
         # Dev note: needs overhaul
-        # M.StorageInit_rtv = Set(dimen=3, initialize=StorageInitIndices)
-        # M.StorageInitFrac = Param(M.StorageInit_rtv)
+        M.StorageInitFrac = Param(M.regions, M.time_optimize, M.time_season, M.tech_storage, M.vintage_all)
 
         M.MyopicBaseyear = Param(default=0)
 
@@ -500,9 +499,10 @@ class TemoaModel(AbstractModel):
         M.FlowInStorage_rpsditvo = Set(dimen=8, initialize=FlowInStorageVariableIndices)
         M.V_FlowIn = Var(M.FlowInStorage_rpsditvo, domain=NonNegativeReals)
 
-        M.StorageLevel_rpsdtv = Set(dimen=6, initialize=StorageVariableIndices)
+        M.StorageInit_rpstv = Set(dimen=5, initialize=StorageInitIndices)
+        M.V_StorageInit = Var(M.StorageInit_rpstv, domain=NonNegativeReals)
+        M.StorageLevel_rpsdtv = Set(dimen=6, initialize=StorageStateIndices)
         M.V_StorageLevel = Var(M.StorageLevel_rpsdtv, domain=NonNegativeReals)
-        # M.V_StorageInit = Var(M.StorageInit_rtv, domain=NonNegativeReals) # Dev note: needs overhaul
 
         # Derived decision variables
 
@@ -609,7 +609,7 @@ class TemoaModel(AbstractModel):
 
         M.progress_marker_6 = BuildAction(['Starting Storage Constraints'], rule=progress_check)
         # This set works for all the storage-related constraints
-        M.StorageConstraints_rpsdtv = Set(dimen=6, initialize=StorageVariableIndices)
+        M.StorageConstraints_rpsdtv = Set(dimen=6, initialize=StorageConstraintIndices)
 
         if TemoaModel.interseason_storage:
             M.StorageEnergyConstraint = Constraint(
@@ -641,10 +641,10 @@ class TemoaModel(AbstractModel):
         )
 
         # StorageInit needs an overhaul
-        # M.StorageInitConstraint_rtv = Set(dimen=2, initialize=StorageInitConstraintIndices)
-        # M.StorageInitConstraint = Constraint(
-        #     M.StorageInitConstraint_rtv, rule=StorageInit_Constraint
-        # )
+        M.StorageInitFracConstraint_rpstv = Set(dimen=5, initialize=StorageInitFracIndices)
+        M.StorageInitFracConstraint = Constraint(
+            M.StorageInitFracConstraint_rpstv, rule=StorageInitFrac_Constraint
+        )
 
         M.RampConstraintDay_rpsdtv = Set(dimen=6, initialize=RampConstraintDayIndices)
         M.RampUpConstraintDay = Constraint(M.RampConstraintDay_rpsdtv, rule=RampUpDay_Constraint)

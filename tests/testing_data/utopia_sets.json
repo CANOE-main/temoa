@@ -5300,7 +5300,7 @@
   "MaxActivityShareConstraint_rptg": [],
   "MinNewCapacityShareConstraint_rptg": [],
   "MaxNewCapacityShareConstraint_rptg": [],
-  "StorageInit_rtv": [
+  "StorageInit_rpstv": [
     [
       "utopia",
       "E51",

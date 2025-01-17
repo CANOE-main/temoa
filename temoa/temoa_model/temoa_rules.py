@@ -1178,35 +1178,34 @@ def InterSeasonStorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
 
     stored_energy = charge - discharge
 
-    # This storage formulation allows stored energy to carry over through
-    # time of day and seasons, but must be zeroed out at the end of each period, i.e.,
-    # the last time slice of the last season must zero out
-    if d == M.time_of_day.last() and s == M.time_season.last():
+    # First time slice of any season
+    # Begin storage state at StorageInit which MAY be constrained by StorageInitFrac
+    if d == M.time_of_day.first():
+        expr = M.V_StorageLevel[r, p, s, d, t, v] == M.V_StorageInit[r, p, s, t, v] + stored_energy
+
+    # Final time slice of final season (end of period)
+    # Loop storage state to initial state of first season
+    # Loop storage state from end to start of same period
+    elif s == M.time_season.last() and d == M.time_of_day.last():
         d_prev = M.time_of_day.prev(d)
-        expr = M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy == M.V_StorageLevel[r, p, s, d, t, v] # M.V_StorageInit[r, t, v]
+        s_first = M.time_season.first()
+        expr = M.V_StorageInit[r, p, s_first, t, v] == M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy
 
-    # First time slice of the first season (i.e., start of period), starts at StorageInit level
-    elif d == M.time_of_day.first() and s == M.time_season.first():
-        d_last = M.time_of_day.last()
-        expr = M.V_StorageLevel[r, p, s, d, t, v] == M.V_StorageLevel[r, p, s, d_last, t, v] + stored_energy # M.V_StorageInit[r, t, v] + stored_energy
+    # Last time slice of any season that is NOT the last season
+    # Carry storage state to initial state of next season
+    # Carry storage state between seasons
+    elif d == M.time_of_day.last():
+        d_prev = M.time_of_day.prev(d)
+        s_next = M.time_season.next(s)
+        expr = M.V_StorageInit[r, p, s_next, t, v] == M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy
 
-    # First time slice of any season that is NOT the first season
-    elif d == M.time_of_day.first():
-        d_last = M.time_of_day.last()
-        s_prev = M.time_season.prev(s)
-        expr = (
-            M.V_StorageLevel[r, p, s, d, t, v]
-            == M.V_StorageLevel[r, p, s_prev, d_last, t, v] + stored_energy
-        )
-
-    # Any time slice that is NOT covered above (i.e., not the time slice ending
-    # the period, or the first time slice of any season)
+    # Not the start or end of any season. Somewhere in the middle of a season
+    # Carry storage state between time slices within the same season
     else:
         d_prev = M.time_of_day.prev(d)
-        expr = (
-            M.V_StorageLevel[r, p, s, d, t, v]
-            == M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy
-        )
+        expr = M.V_StorageLevel[r, p, s, d, t, v] == M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy
+
+    print(expr)
 
     return expr
 
@@ -1217,6 +1216,9 @@ def IntraSeasonStorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
     of storage within each season rather than carrying it between seasons. Necessary
     when the order of seasons in the database is not representative of their actual
     chronological sequence.
+
+    Can set interseason_storage to value 1 in MetaData table to allow storage state
+    to carry between seasons, if seasons are real-world chronological.
     """
 
     # This is the sum of all input=i sent TO storage tech t of vintage v with
@@ -1238,20 +1240,22 @@ def IntraSeasonStorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
     stored_energy = charge - discharge
 
     # First time slice of any season
+    # Begin storage state at StorageInit which MAY be constrained by StorageInitFrac
     if d == M.time_of_day.first():
-        d_last = M.time_of_day.last()
-        expr = (
-            M.V_StorageLevel[r, p, s, d, t, v]
-            == M.V_StorageLevel[r, p, s, d_last, t, v] + stored_energy
-        )
+        expr = M.V_StorageLevel[r, p, s, d, t, v] == M.V_StorageInit[r, p, s, t, v] + stored_energy
 
-    # Any other time slice in a season
+    # Last time slice of any season
+    # Loop storage state back to initial state of same season
+    # Loop storage state within each season
+    elif d == M.time_of_day.last():
+        d_prev = M.time_of_day.prev(d)
+        expr = M.V_StorageInit[r, p, s, t, v] == M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy
+
+    # Not the start or end of any season. Somewhere in the middle of a season
+    # Carry storage state between time slices within the same season
     else:
         d_prev = M.time_of_day.prev(d)
-        expr = (
-            M.V_StorageLevel[r, p, s, d, t, v]
-            == M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy
-        )
+        expr = M.V_StorageLevel[r, p, s, d, t, v] == M.V_StorageLevel[r, p, s, d_prev, t, v] + stored_energy
 
     return expr
 
@@ -1293,7 +1297,11 @@ def StorageEnergyUpperBound_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
         * 365
         * value(M.ProcessLifeFrac[r, p, t, v])
     )
-    expr = M.V_StorageLevel[r, p, s, d, t, v] <= energy_capacity
+
+    if d == M.time_of_day.last(): storage_level = M.V_StorageInit[r, p, s, t, v]
+    else: storage_level = M.V_StorageLevel[r, p, s, d, t, v]
+    
+    expr = storage_level <= energy_capacity
 
     return expr
 
@@ -1415,7 +1423,7 @@ def StorageThroughput_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
     return expr
 
 
-def StorageInit_Constraint(M: 'TemoaModel', r, t, v):
+def StorageInitFrac_Constraint(M: 'TemoaModel', r, p, s, t, v):
     r"""
 
     This constraint is used if the users wishes to force a specific initial storage charge level
@@ -1443,22 +1451,18 @@ def StorageInit_Constraint(M: 'TemoaModel', r, t, v):
     # dev note:  This constraint is not currently accessible and needs close review.
     #            the hybrid loader currently screens out inputs for this to keep
     #            it idle.
-    raise NotImplementedError('This constraint needs overhaul...')
-    s = M.time_season.first()
-    # the only capacity of concern here is for the vintage year for initialization
-    vintage_period = s
+    #raise NotImplementedError('This constraint needs overhaul...')
 
-    # devnote:  storage techs are currently excluded from the tech_retirements, so no change in
-    #           capacity should ever occur
     energy_capacity = (
-        M.V_Capacity[r, vintage_period, t, v]
+        M.V_Capacity[r, p, t, v]
         * M.CapacityToActivity[r, t]
         * (M.StorageDuration[r, t] / 8760)
         * sum(M.SegFrac[s, S_d] for S_d in M.time_of_day)
         * 365
-        * value(M.ProcessLifeFrac[r, v, t, v])
+        * value(M.ProcessLifeFrac[r, p, t, v])
     )
-    expr = M.V_StorageInit[r, t, v] == energy_capacity * M.StorageInitFrac[r, t, v]
+
+    expr = M.V_StorageInit[r, p, s, t, v] == energy_capacity * M.StorageInitFrac[r, p, s, t, v]
 
     return expr
 
