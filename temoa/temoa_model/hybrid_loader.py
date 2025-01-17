@@ -911,14 +911,14 @@ class HybridLoader:
             raw = cur.execute(
                 'SELECT region, period, tech, group_name, max_proportion FROM main.MinNewCapacityShare'
             ).fetchall()
-            load_element(M.MinCapacityShare, raw, self.viable_rt, (0, 2))
+            load_element(M.MinNewCapacityShare, raw, self.viable_rt, (0, 2))
 
         # MaxNewCapacityShare
         if self.table_exists('MaxNewCapacityShare'):
             raw = cur.execute(
                 'SELECT region, period, tech, group_name, max_proportion FROM main.MaxNewCapacityShare'
             ).fetchall()
-            load_element(M.MaxCapacityShare, raw, self.viable_rt, (0, 2))
+            load_element(M.MaxNewCapacityShare, raw, self.viable_rt, (0, 2))
 
         # MinNewCapacityGroupShare
         if self.table_exists('MinNewCapacityGroupShare'):
@@ -1039,27 +1039,85 @@ class HybridLoader:
 
         # MinAnnualCapacityFactor
         if self.table_exists('MinAnnualCapacityFactor'):
-            raw = cur.execute(
-                'SELECT region, period, tech, output_comm, factor FROM main.MinAnnualCapacityFactor'
-            ).fetchall()
+            if mi:                                                                  # Rashid: min/max annual capacity factors did not have myopic mode querying
+                raw = cur.execute(
+                    'SELECT region, period, tech, output_comm, factor FROM main.MinAnnualCapacityFactor '  
+                    'WHERE period >= ? AND period <= ?',
+                    (mi.base_year, mi.last_demand_year),
+                ).fetchall()
+            else:
+                raw = cur.execute(
+                    'SELECT region, period, tech, output_comm, factor FROM main.MinAnnualCapacityFactor'
+                ).fetchall()
             load_element(M.MinAnnualCapacityFactor, raw, self.viable_rt, (0, 2))
 
         # MaxAnnualCapacityFactor
         if self.table_exists('MaxAnnualCapacityFactor'):
-            raw = cur.execute(
-                'SELECT region, period, tech, output_comm, factor FROM main.MaxAnnualCapacityFactor'
-            ).fetchall()
+            if mi:
+                raw = cur.execute(
+                    'SELECT region, period, tech, output_comm, factor FROM main.MaxAnnualCapacityFactor '  
+                    'WHERE period >= ? AND period <= ?',
+                    (mi.base_year, mi.last_demand_year),
+                ).fetchall()
+            else:
+                raw = cur.execute(
+                    'SELECT region, period, tech, output_comm, factor FROM main.MaxAnnualCapacityFactor'
+                ).fetchall()
             load_element(M.MaxAnnualCapacityFactor, raw, self.viable_rt, (0, 2))
 
         # GrowthRateMax
         if self.table_exists('GrowthRateMax'):
-            raw = cur.execute('SELECT region, tech, rate FROM main.GrowthRateMax').fetchall()
-            load_element(M.GrowthRateMax, raw, self.viable_rt, (0, 1))
+            if mi:
+                raw = cur.execute(
+                    'SELECT region, period, tech, rate FROM main.GrowthRateMax '     # Rashid: Added periods to growth rates
+                    'WHERE period >= ? AND period <= ?',
+                    (mi.base_year, mi.last_demand_year),
+                ).fetchall()
+            else:
+                raw = cur.execute(
+                    'SELECT region, period, tech, rate FROM main.GrowthRateMax '
+                ).fetchall()
+            load_element(M.MaxGrowthRate, raw, self.viable_rt, (0, 2))
+
+        # GroupGrowthRateMax
+        if self.table_exists('GroupGrowthRateMax'):
+            if mi:
+                raw = cur.execute(
+                    'SELECT region, period, group_name, rate FROM main.GroupGrowthRateMax '
+                    'WHERE period >= ? AND period <= ?',
+                    (mi.base_year, mi.last_demand_year),
+                ).fetchall()
+            else:
+                raw = cur.execute(
+                    'SELECT region, period, group_name, rate FROM main.GroupGrowthRateMax '
+                ).fetchall()
+            # load_element(M.MaxGrowthRate, raw, self.viable_rt, (0, 2))
+            load_element(M.MaxGrowthRateGroup, raw)
+        
+        # GrowthRateMin
+        if self.table_exists('GrowthRateMin'):
+            if mi:
+                raw = cur.execute(
+                    'SELECT region, period, tech, rate FROM main.GrowthRateMin '
+                    'WHERE period >= ? AND period <= ?',
+                    (mi.base_year, mi.last_demand_year),
+                ).fetchall()
+            else:
+                raw = cur.execute(
+                    'SELECT region, period, tech, rate FROM main.GrowthRateMin '
+                ).fetchall()
+            load_element(M.MinGrowthRate, raw, self.viable_rt, (0, 2))
 
         # GrowthRateSeed
         if self.table_exists('GrowthRateSeed'):
             raw = cur.execute('SELECT region, tech, seed FROM main.GrowthRateSeed').fetchall()
             load_element(M.GrowthRateSeed, raw, self.viable_rt, (0, 1))
+
+        # GroupGrowthRateSeed
+        if self.table_exists('GroupGrowthRateSeed'):
+            raw = cur.execute('SELECT region, group, seed FROM main.GroupGrowthRateSeed').fetchall()
+            # load_element(M.GrowthRateSeed, raw, self.viable_rt, (0, 1))
+            load_element(M.GrowthRateSeed, raw)
 
         # EmissionLimit
         if self.table_exists('EmissionLimit'):
@@ -1206,6 +1264,9 @@ class HybridLoader:
             M.MaxActivityGroup.name: M.MaxActivityGroup_rpg.name,
             M.MaxActivityShare.name: M.MaxActivityShareConstraint_rptg.name,
             M.MaxAnnualCapacityFactor.name: M.MaxAnnualCapacityFactorConstraint_rpto.name,
+            M.MaxGrowthRate.name: M.MaxGrowthRateConstraint_rpt.name,
+            M.MaxGrowthRateGroup.name: M.MaxGrowthRateGroupConstraint_rpg.name,
+            M.MinGrowthRate.name: M.MinGrowthRateConstraint_rpt.name,
             M.MaxCapacity.name: M.MaxCapacityConstraint_rpt.name,
             M.MaxCapacityGroup.name: M.MaxCapacityGroupConstraint_rpg.name,
             M.MaxCapacityShare.name: M.MaxCapacityShareConstraint_rptg.name,

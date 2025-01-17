@@ -492,7 +492,7 @@ def PeriodCost_rule(M: 'TemoaModel', p):
         fixed_or_variable_cost(
             M.V_FlowOut[r, p, s, d, S_i, S_t, S_v, S_o],
             M.CostVariable[r, p, S_t, S_v],
-            MPL[r, p, S_t, S_v],
+            M.PeriodLength[p],
             GDR,
             P_0,
             p,
@@ -509,7 +509,7 @@ def PeriodCost_rule(M: 'TemoaModel', p):
         fixed_or_variable_cost(
             M.V_FlowOutAnnual[r, p, S_i, S_t, S_v, S_o],
             M.CostVariable[r, p, S_t, S_v],
-            MPL[r, p, S_t, S_v],
+            M.PeriodLength[p],
             GDR,
             P_0,
             p,
@@ -555,7 +555,7 @@ def PeriodCost_rule(M: 'TemoaModel', p):
         fixed_or_variable_cost(
             cap_or_flow=M.V_FlowOut[r, p, s, d, i, t, v, o] * M.EmissionActivity[r, e, i, t, v, o],
             cost_factor=M.CostEmission[r, p, e],
-            process_lifetime=MPL[r, p, t, v],
+            process_lifetime=M.PeriodLength[p],
             GDR=GDR,
             P_0=P_0,
             p=p,
@@ -572,7 +572,7 @@ def PeriodCost_rule(M: 'TemoaModel', p):
         fixed_or_variable_cost(
             cap_or_flow=M.V_FlowOutAnnual[r, p, i, t, v, o] * M.EmissionActivity[r, e, i, t, v, o],
             cost_factor=M.CostEmission[r, p, e],
-            process_lifetime=MPL[r, p, t, v],
+            process_lifetime=M.PeriodLength[p],
             GDR=GDR,
             P_0=P_0,
             p=p,
@@ -1894,7 +1894,7 @@ def EmissionLimit_Constraint(M: 'TemoaModel', r, p, e):
     return expr
 
 
-def GrowthRateConstraint_rule(M: 'TemoaModel', p, r, t):
+def MaxGrowthRateConstraint_rule(M: 'TemoaModel', r, p, t):             # Rashid: Fixed order of indices to match the constraint
     r"""
 
     This constraint sets an upper bound growth rate on technology-specific capacity.
@@ -1902,7 +1902,7 @@ def GrowthRateConstraint_rule(M: 'TemoaModel', p, r, t):
     .. math::
        :label: GrowthRate
 
-       CAPAVL_{r, p_{i},t} \le GRM \cdot CAPAVL_{r,p_{i-1},t} + GRS
+       CAP_{r, t, p_{i}} \le GRM \cdot CAP_{r, t, p_{i-1}} + GRS
 
        \\
        \forall \{r, p, t\} \in \Theta_{\text{GrowthRate}}
@@ -1914,24 +1914,112 @@ def GrowthRateConstraint_rule(M: 'TemoaModel', p, r, t):
     horizon.
     """
     GRS = value(M.GrowthRateSeed[r, t])
-    GRM = value(M.GrowthRateMax[r, t])
-    CapPT = M.V_CapacityAvailableByPeriodAndTech
+    GRM = value(M.MaxGrowthRate[r, p, t])                               # Rashid: Modified to allow for growth rates by period
+    CapT = M.V_CapacityAvailableByPeriodAndTech                                              
 
-    periods = sorted(set(p_ for r_, p_, t_ in CapPT if t_ == t))
+    periods = sorted(set(p_ for r_, t_, p_ in CapT if t_ == t))
 
     if p not in periods:
         return Constraint.Skip
 
     if p == periods[0]:
-        expr = CapPT[r, p, t] <= GRS * GRM
+        expr = CapT[r, t, p] <= GRS * GRM
     
     else:
         p_prev = periods.index(p)
         p_prev = periods[p_prev - 1]
-        if (r, p_prev, t) in CapPT.keys():
-            expr = CapPT[r, p, t] <= GRM * CapPT[r, p_prev, t] + GRS    # + GRS was missing, therefore denying any growth for every tech with no capacity on p0
+        if (r, t, p_prev) in CapT.keys():
+            expr = CapT[r, t, p] <= GRM * CapT[r, t, p_prev] + GRS      # Rashid: + GRS was missing, therefore denying any growth for every tech with no capacity on p0
         else:
-            expr = CapPT[r, p, t] <= GRS * GRM
+            expr = CapT[r, t, p] <= GRS * GRM
+
+    return expr
+
+# Rashid: Added new constraint based on previous rule to set upper bound on capacity growth for a group of technologies
+def MaxGrowthRateGroupConstraint_rule(M: 'TemoaModel', r, p, t, g):             
+    r"""
+    Similar to the :code:`MaxGrowthRateConstraint_rule`, this constraint sets an upper bound growth rate on technology-specific capacity, but for a group of technologies.
+    """
+    regions = gather_group_regions(M, r)
+
+    GRS = value(M.GrowthRateSeedGroup[r, g])
+    GRM = value(M.MaxGrowthRateGroup[r, p, g])    
+    CapT = M.V_CapacityAvailableByPeriodAndTech
+
+    periods = sorted(set(p_ for r_, p_, t_ in CapT if t_ == t))
+
+    if p not in periods:
+        return Constraint.Skip
+
+    if p == periods[0]:
+        GCap = sum(
+            CapT[r_i, p, t] 
+            for t in M.tech_group_members[g]
+            for r_i in regions 
+            if (r_i, p, t) in M.V_CapacityAvailableByPeriodAndTech
+        )
+        expr = GCap <= GRS * GRM
+    
+    else:
+        p_prev = periods.index(p)
+        p_prev = periods[p_prev - 1]
+        GCap = sum(
+            CapT[r_i, p, t] 
+            for t in M.tech_group_members[g]
+            for r_i in regions 
+            if (r_i, p, t) in M.V_CapacityAvailableByPeriodAndTech
+        )
+        GCap_prev = sum(
+            CapT[r_i, p_prev, t] 
+            for t in M.tech_group_members[g]
+            for r_i in regions 
+            if (r_i, p_prev, t) in M.V_CapacityAvailableByPeriodAndTech
+        )
+        
+        if (r, p_prev, t) in CapT.keys():
+            expr = GCap <= GRM * GCap_prev + GRS      
+        else:
+            expr = GCap <= GRS * GRM
+
+    return expr
+
+# Rashid: Added new constraint based on previous rule to set lower bound on conventional tech capacity growth
+def MinGrowthRateConstraint_rule(M: 'TemoaModel', r, p, t):
+    r"""
+
+    This constraint sets a lower bound growth rate on technology-specific capacity.
+
+    .. math::
+       :label: GrowthRate
+
+       CAP_{r, t, p_{i}} \ge GRM \cdot CAP_{r, t, p_{i-1}}
+
+       \\
+       \forall \{r, p, t\} \in \Theta_{\text{GrowthRate}}
+
+    where :math:`GRM` is the minimum growth rate, and should be specified as
+    :math:`(1+r)` and :math:`GRS` is the growth rate seed, which has units of
+    capacity.
+    """
+    # GRS = value(M.GrowthRateSeed[r, t])           # Rashid: No need for a seed as the target techs already have a predefined capacity on p0
+    GRM = value(M.MinGrowthRate[r, p, t])           # Rashid: Modified to allow for growth rates by period
+    CapT = M.V_CapacityAvailableByPeriodAndTech                          
+
+    periods = sorted(set(p_ for r_, t_, p_ in CapT if t_ == t))
+
+    if p not in periods:
+        return Constraint.Skip
+
+    if p == periods[0]:
+        expr = CapT[r, t, p] >= 0                   # Rashid: Skipping first period; only meant for conventional techs with MinNewCapacity on p0
+
+    else:
+        p_prev = periods.index(p)
+        p_prev = periods[p_prev - 1]
+        if (r, t, p_prev) in CapT.keys():
+            expr = CapT[r, t, p] >= GRM * CapT[r, t, p_prev]
+        else:
+            expr = CapT[r, t, p] >= 0
 
     return expr
 
@@ -2687,6 +2775,7 @@ def MinNewCapacityShare_Constraint(M: 'TemoaModel', r, p, t, g):
             g,
         )
         return Constraint.Skip
+    print(expr, '\n')
     return expr
 
 
@@ -2882,7 +2971,7 @@ def TechInputSplit_Constraint(M: 'TemoaModel', r, p, s, d, i, t, v):
     total_inp = sum(
         M.V_FlowOut[r, p, s, d, S_i, t, v, S_o] / value(M.Efficiency[r, S_i, t, v, S_o])
         for S_i in M.processInputs[r, p, t, v]
-        for S_o in M.ProcessOutputsByInput[r, p, t, v, i]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
     )
 
     expr = inp >= M.TechInputSplit[r, p, i, t] * total_inp
@@ -2904,7 +2993,7 @@ def TechInputSplitAnnual_Constraint(M: 'TemoaModel', r, p, i, t, v):
     total_inp = sum(
         M.V_FlowOutAnnual[r, p, S_i, t, v, S_o] / value(M.Efficiency[r, S_i, t, v, S_o])
         for S_i in M.processInputs[r, p, t, v]
-        for S_o in M.ProcessOutputsByInput[r, p, t, v, i]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
     )
 
     expr = inp >= M.TechInputSplit[r, p, i, t] * total_inp

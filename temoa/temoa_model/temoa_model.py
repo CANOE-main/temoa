@@ -390,8 +390,32 @@ class TemoaModel(AbstractModel):
             within=M.RegionalGlobalIndices * M.time_optimize * M.tech_all * M.commodity_carrier
         )
         M.MaxAnnualCapacityFactor = Param(M.MaxAnnualCapacityFactorConstraint_rpto)
-        M.GrowthRateMax = Param(M.RegionalIndices, M.tech_all)
+
+        #   Rashid: formalized formulation of growth rate constraints
+        # M.GrowthRateMax = Param(M.RegionalIndices, M.time_optimize, M.tech_all)
+
+        # M.GrowthRateMin = Param(M.RegionalIndices, M.time_optimize, M.tech_all)
+
+        M.GrowthRateIndices = Set(
+            dimen=3,
+            initialize=GrowthRateIndices
+        )
+        M.GrowthRateGroupIndices = Set(
+            dimen=3,
+            initialize=GrowthRateGroupIndices
+        )
+
+        M.MaxGrowthRateConstraint_rpt = Set(within=M.GrowthRateIndices)
+        M.MaxGrowthRate = Param(M.GrowthRateIndices)
+
+        M.MaxGrowthRateGroupConstraint_rpg = Set(within=M.GrowthRateGroupIndices)
+        M.MaxGrowthRateGroup = Param(M.GrowthRateGroupIndices)
+
+        M.MinGrowthRateConstraint_rpt = Set(within=M.GrowthRateIndices)
+        M.MinGrowthRate = Param(M.GrowthRateIndices)
+
         M.GrowthRateSeed = Param(M.RegionalIndices, M.tech_all)
+        M.GrowthRateSeedGroup = Param(M.RegionalIndices, M.tech_group_names)
 
         M.EmissionLimitConstraint_rpe = Set(
             within=M.RegionalGlobalIndices * M.time_optimize * M.commodity_emissions
@@ -680,12 +704,32 @@ class TemoaModel(AbstractModel):
             ['Starting Growth and Activity Constraints'], rule=progress_check
         )
 
-        M.GrowthRateMaxConstraint_rtv = Set(
-            dimen=3,
-            initialize=GrowthRateMax_rtv_initializer,
+        # M.GrowthRateMaxConstraint_rtv = Set(
+        #     dimen=3,
+        #     initialize=GrowthRateMax_rtv_initializer,
+        # )
+        # M.GrowthRateConstraint = Constraint(
+        #     M.GrowthRateMaxConstraint_rtv, rule=GrowthRateConstraint_rule
+        # )
+
+        # M.GrowthRateMinConstraint_rtv = Set(
+        #     dimen=3,
+        #     initialize=GrowthRateMin_rtv_initializer,
+        # )
+        # M.MinGrowthRateConstraint = Constraint(
+        #     M.GrowthRateMinConstraint_rtv, rule=MinGrowthRateConstraint_rule
+        # )
+
+        M.MaxGrowthRateConstraint = Constraint(
+            M.MaxGrowthRateConstraint_rpt, rule=MaxGrowthRateConstraint_rule
         )
-        M.GrowthRateConstraint = Constraint(
-            M.GrowthRateMaxConstraint_rtv, rule=GrowthRateConstraint_rule
+
+        M.MaxGrowthRateGroupConstraint = Constraint(
+            M.MaxGrowthRateGroupConstraint_rpg, rule=MaxGrowthRateGroupConstraint_rule
+        )
+
+        M.MinGrowthRateConstraint = Constraint(
+            M.MinGrowthRateConstraint_rpt, rule=MinGrowthRateConstraint_rule
         )
 
         M.MaxActivityConstraint = Constraint(

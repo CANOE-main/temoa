@@ -949,6 +949,25 @@ def TwoGroupShareIndices(M: 'TemoaModel'):
 
     return indices
 
+def GrowthRateIndices(M: 'TemoaModel'):    # Rashid: created new index set for growth rate constraints
+    indices = set(
+        (r, p, t)
+        for r, p, t in M.processVintages.keys()
+        if t in M.tech_with_capacity
+    )
+
+    return indices
+
+def GrowthRateGroupIndices(M: 'TemoaModel'):
+    indices = set(
+        (r, p, g)
+        for g in M.tech_group_names
+        for r, p, _t in M.processVintages.keys()
+        if _t in M.tech_group_members[g]
+    )
+
+    return indices
+
 
 def EmissionActivityIndices(M: 'TemoaModel'):
     indices = set(
@@ -1365,9 +1384,13 @@ def get_loan_life(M, r, t, _):
     return M.LoanLifetimeTech[r, t]
 
 
-def GrowthRateMax_rtv_initializer(M: 'TemoaModel'):
-    # need to do this outside of the model because the elements are not initialized yet for 'product'
-    return set(product(M.time_optimize, M.GrowthRateMax.sparse_iterkeys()))
+# def GrowthRateMax_rtv_initializer(M: 'TemoaModel'):
+#     # need to do this outside of the model because the elements are not initialized yet for 'product'
+#     return set(product(M.time_optimize, M.GrowthRateMax.sparse_iterkeys()))
+
+# def GrowthRateMin_rtv_initializer(M: 'TemoaModel'):
+#     # need to do this outside of the model because the elements are not initialized yet for 'product'
+#     return set(product(M.time_optimize, M.GrowthRateMin.sparse_iterkeys()))
 
 
 def copy_from(other_set):
