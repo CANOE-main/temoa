@@ -3939,7 +3939,7 @@
     ]
   ],
   "StorageInitFracConstraint_rpstv": [],
-  "RampConstraintDay_rpsdtv": [
+  "RampConstraint_rpsdtv": [
     [
       "A",
       2025,
@@ -4001,20 +4001,6 @@
       2025,
       "s1",
       "d1",
-      "EH",
-      2025
-    ]
-  ],
-  "RampConstraintPeriod_rptv": [
-    [
-      "B",
-      2025,
-      "EH",
-      2025
-    ],
-    [
-      "A",
-      2025,
       "EH",
       2025
     ]

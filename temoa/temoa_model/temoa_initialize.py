@@ -1271,32 +1271,13 @@ def StorageInitFracIndices(M: 'TemoaModel'):
     return indices
 
 
-def RampConstraintDayIndices(M: 'TemoaModel'):
+def RampConstraintIndices(M: 'TemoaModel'):
     indices = set(
         (r, p, s, d, t, v)
         for r, p, t in M.rampVintages.keys()
         for s in M.time_season
         for d in M.time_of_day
         for v in M.rampVintages[r, p, t]
-    )
-
-    return indices
-
-
-def RampConstraintSeasonIndices(M: 'TemoaModel'):
-    indices = set(
-        (r, p, s, t, v)
-        for r, p, t in M.rampVintages.keys()
-        for s in M.time_season
-        for v in M.rampVintages[r, p, t]
-    )
-
-    return indices
-
-
-def RampConstraintPeriodIndices(M: 'TemoaModel'):
-    indices = set(
-        (r, p, t, v) for r, p, t in M.rampVintages.keys() for v in M.rampVintages[r, p, t]
     )
 
     return indices

@@ -24505,8 +24505,7 @@
     ]
   ],
   "StorageInitFracConstraint_rpstv": [],
-  "RampConstraintDay_rpsdtv": [],
-  "RampConstraintPeriod_rptv": [],
+  "RampConstraint_rpsdtv": [],
   "ReserveMargin_rpsd": [
     [
       "utopia",

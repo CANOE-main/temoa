@@ -1105,7 +1105,31 @@ def RegionalExchangeCapacity_Constraint(M: 'TemoaModel', r_e, r_i, p, t, v):
     return expr
 
 
-def InterSeasonStorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
+def StorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
+
+    # This is the sum of all input=i sent TO storage tech t of vintage v with
+    # output=o in p,s,d
+    charge = sum(
+        M.V_FlowIn[r, p, s, d, S_i, t, v, S_o] * M.Efficiency[r, S_i, t, v, S_o]
+        for S_i in M.processInputs[r, p, t, v]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+    )
+
+    # This is the sum of all output=o withdrawn FROM storage tech t of vintage v
+    # with input=i in p,s,d
+    discharge = sum(
+        M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
+        for S_o in M.processOutputs[r, p, t, v]
+        for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
+    )
+
+    stored_energy = charge - discharge
+
+    if M.link_seasons: return link_season_storage_energy(M, r, p, s, d, t, v, stored_energy)
+    else: return loop_season_storage_energy(M, r, p, s, d, t, v, stored_energy)
+
+
+def link_season_storage_energy(M: 'TemoaModel', r, p, s, d, t, v, stored_energy) -> Expression:
     r"""
 
     This constraint tracks the storage charge level (:math:`\textbf{SL}_{r, p, s, d, t, v}`)
@@ -1159,24 +1183,9 @@ def InterSeasonStorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
 
     .. math::
           \forall \{r, p, s, d, t, v\} \in \Theta_{\text{StorageEnergy}}
+
+    This constraint is used if link_seasons is set to 1 in the MetaData table
     """
-    # This is the sum of all input=i sent TO storage tech t of vintage v with
-    # output=o in p,s,d
-    charge = sum(
-        M.V_FlowIn[r, p, s, d, S_i, t, v, S_o] * M.Efficiency[r, S_i, t, v, S_o]
-        for S_i in M.processInputs[r, p, t, v]
-        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
-    )
-
-    # This is the sum of all output=o withdrawn FROM storage tech t of vintage v
-    # with input=i in p,s,d
-    discharge = sum(
-        M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
-        for S_o in M.processOutputs[r, p, t, v]
-        for S_i in M.ProcessInputsByOutput[r, p, t, v, S_o]
-    )
-
-    stored_energy = charge - discharge
 
     # First time slice of any season
     # Begin storage state at StorageInit which MAY be constrained by StorageInitFrac
@@ -1208,14 +1217,14 @@ def InterSeasonStorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
     return expr
 
 
-def IntraSeasonStorageEnergy_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
+def loop_season_storage_energy(M: 'TemoaModel', r, p, s, d, t, v) -> Expression:
     r"""
     This variant of the storage energy constraint, used by default, loops the state
     of storage within each season rather than carrying it between seasons. Necessary
     when the order of seasons in the database is not representative of their actual
     chronological sequence.
 
-    Can set interseason_storage to value 1 in MetaData table to allow storage state
+    Can set link_seasons to value 1 in MetaData table to allow storage state
     to carry between seasons, if seasons are real-world chronological.
     """
 
@@ -1512,27 +1521,47 @@ def RampUpDay_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
           \\
           \forall \{r, p, s, d, t, v\} \in \Theta_{\text{RampUpDay}}
     """
-    if d != M.time_of_day.first():
-        d_prev = M.time_of_day.prev(d)
-        activity_sd_prev = sum(
-            M.V_FlowOut[r, p, s, d_prev, S_i, t, v, S_o]
-            for S_i in M.processInputs[r, p, t, v]
-            for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
-        )
 
-        activity_sd = sum(
-            M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
-            for S_i in M.processInputs[r, p, t, v]
-            for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
-        )
-
-        expr_left = (
-            activity_sd / value(M.SegFrac[s, d]) - activity_sd_prev / value(M.SegFrac[s, d_prev])
-        ) / value(M.CapacityToActivity[r, t])
-        expr_right = M.V_Capacity[r, p, t, v] * value(M.RampUp[r, t])
-        expr = expr_left <= expr_right
+    if M.link_seasons:
+        # Linking seasons together chronologically
+        if s == M.time_season.first() and d == M.time_of_day.first():
+            # beginning of period, loop to end of same period
+            s_prev = M.time_season.last()
+            d_prev = M.time_of_day.last()
+        elif d == M.time_of_day.first():
+            # beginning of season (but not period), link to end of last season
+            s_prev = M.time_season.prev(s)
+            d_prev = M.time_of_day.last()
+        else:
+            # middle of season, link to previous time slice in same season
+            s_prev = s
+            d_prev = M.time_of_day.prev(d)
     else:
-        return Constraint.Skip
+        # Looping each season within itself (default behaviour)
+        if d == M.time_of_day.first():
+            # beginning of season, loop to end of same season
+            s_prev = s
+            d_prev = M.time_of_day.last()
+        else:
+            # middle of season, link to previous time slice in same season
+            s_prev = s
+            d_prev = M.time_of_day.prev(d)
+
+    activity_sd_prev = sum(
+        M.V_FlowOut[r, p, s_prev, d_prev, S_i, t, v, S_o]
+        for S_i in M.processInputs[r, p, t, v]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+    ) / value(M.SegFrac[s_prev, d_prev])
+
+    activity_sd = sum(
+        M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
+        for S_i in M.processInputs[r, p, t, v]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+    ) / value(M.SegFrac[s, d])
+
+    activity_increase = activity_sd - activity_sd_prev # opposite sign from rampdown
+    rampable_activity = M.V_Capacity[r, p, t, v] * value(M.CapacityToActivity[r, t]) * value(M.RampUp[r, t])
+    expr = activity_increase <= rampable_activity
 
     return expr
 
@@ -1562,191 +1591,49 @@ def RampDownDay_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
           \\
           \forall \{r, p, s, d, t, v\} \in \Theta_{\text{RampDownDay}}
     """
-    if d != M.time_of_day.first():
-        d_prev = M.time_of_day.prev(d)
-        activity_sd_prev = sum(
-            M.V_FlowOut[r, p, s, d_prev, S_i, t, v, S_o]
-            for S_i in M.processInputs[r, p, t, v]
-            for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
-        )
 
-        activity_sd = sum(
-            M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
-            for S_i in M.processInputs[r, p, t, v]
-            for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
-        )
-
-        expr_left = (
-            activity_sd / value(M.SegFrac[s, d]) - activity_sd_prev / value(M.SegFrac[s, d_prev])
-        ) / value(M.CapacityToActivity[r, t])
-        expr_right = -(M.V_Capacity[r, p, t, v] * value(M.RampDown[r, t]))
-        expr = expr_left >= expr_right
+    if M.link_seasons:
+        # Linking seasons together chronologically
+        if s == M.time_season.first() and d == M.time_of_day.first():
+            # beginning of period, loop to end of same period
+            s_prev = M.time_season.last()
+            d_prev = M.time_of_day.last()
+        elif d == M.time_of_day.first():
+            # beginning of season (but not period), link to end of last season
+            s_prev = M.time_season.prev(s)
+            d_prev = M.time_of_day.last()
+        else:
+            # middle of season, link to previous time slice in same season
+            s_prev = s
+            d_prev = M.time_of_day.prev(d)
     else:
-        return Constraint.Skip
+        # Looping each season within itself (default behaviour)
+        if d == M.time_of_day.first():
+            # beginning of season, loop to end of same season
+            s_prev = s
+            d_prev = M.time_of_day.last()
+        else:
+            # middle of season, link to previous time slice in same season
+            s_prev = s
+            d_prev = M.time_of_day.prev(d)
+
+    activity_sd_prev = sum(
+        M.V_FlowOut[r, p, s_prev, d_prev, S_i, t, v, S_o]
+        for S_i in M.processInputs[r, p, t, v]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+    ) / value(M.SegFrac[s_prev, d_prev])
+
+    activity_sd = sum(
+        M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
+        for S_i in M.processInputs[r, p, t, v]
+        for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
+    ) / value(M.SegFrac[s, d])
+
+    activity_decrease = activity_sd_prev - activity_sd # opposite sign from rampup
+    rampable_activity = M.V_Capacity[r, p, t, v] * value(M.CapacityToActivity[r, t]) * value(M.RampDown[r, t])
+    expr = activity_decrease <= rampable_activity
 
     return expr
-
-
-def RampUpSeason_Constraint(M: 'TemoaModel', r, p, s, t, v):
-    r"""
-
-    Note that :math:`d_1` and :math:`d_{nd}` represent the first and last time-of-day,
-    respectively.
-
-    .. math::
-       :label:
-
-          \frac{
-              \sum_{I, O} \textbf{FO}_{r, p, s_{i + 1}, d_1, i, t, v, o}
-              }{
-              SEG_{s_{i + 1}, d_1} \cdot C2A_{r,t}
-              }
-          -
-          \frac{
-              \sum_{I, O} \textbf{FO}_{r, p, s_i, d_{nd}, i, t, v, o}
-              }{
-              SEG_{s_i, d_{nd}} \cdot C2A_{r,t}
-              }
-          \leq
-          r_t \cdot \textbf{CAPAVL}_{r,p,t}
-          \\
-          \forall \{r, p, s, t, v\} \in \Theta_{\text{RampUpSeason}}
-    """
-    if s != M.time_season.first():
-        s_prev = M.time_season.prev(s)
-        d_first = M.time_of_day.first()
-        d_last = M.time_of_day.last()
-
-        activity_sd_first = sum(
-            M.V_FlowOut[r, p, s, d_first, S_i, t, v, S_o]
-            for S_i in M.processInputs[r, p, t, v]
-            for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
-        )
-
-        activity_s_prev_d_last = sum(
-            M.V_FlowOut[r, p, s_prev, d_last, S_i, t, v, S_o]
-            for S_i in M.processInputs[r, p, t, v]
-            for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
-        )
-
-        expr_left = (
-            activity_sd_first / M.SegFrac[s, d_first]
-            - activity_s_prev_d_last / M.SegFrac[s_prev, d_last]
-        ) / value(M.CapacityToActivity[r, t])
-        expr_right = M.V_Capacity[r, p, t, v] * value(M.RampUp[r, t])
-        expr = expr_left <= expr_right
-    else:
-        return Constraint.Skip
-
-    return expr
-
-
-def RampDownSeason_Constraint(M: 'TemoaModel', r, p, s, t, v):
-    r"""
-
-    Similar to the :code:`RampUpSeason` constraint, we use the
-    :code:`RampDownSeason` constraint to limit ramp down rates
-    between any two adjacent seasons.
-
-    .. math::
-       :label: RampDownSeason
-
-          \frac{
-              \sum_{I, O} \textbf{FO}_{r, p, s_{i + 1}, d_1, i, t, v, o}
-              }{
-              SEG_{s_{i + 1}, d_1} \cdot C2A_{r,t}
-              }
-          -
-          \frac{
-              \sum_{I, O} \textbf{FO}_{r, p, s_i, d_{nd}, i, t, v, o}
-              }{
-              SEG_{s_i, d_{nd}} \cdot C2A_{r,t}
-              }
-          \geq
-          -r_t \cdot \textbf{CAPAVL}_{r,p,t}
-          \\
-          \forall \{r, p, s, t, v\} \in \Theta_{\text{RampDownSeason}}
-    """
-    if s != M.time_season.first():
-        s_prev = M.time_season.prev(s)
-        d_first = M.time_of_day.first()
-        d_last = M.time_of_day.last()
-
-        activity_sd_first = sum(
-            M.V_FlowOut[r, p, s, d_first, S_i, t, v, S_o]
-            for S_i in M.processInputs[r, p, t, v]
-            for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
-        )
-
-        activity_s_prev_d_last = sum(
-            M.V_FlowOut[r, p, s_prev, d_last, S_i, t, v, S_o]
-            for S_i in M.processInputs[r, p, t, v]
-            for S_o in M.ProcessOutputsByInput[r, p, t, v, S_i]
-        )
-
-        expr_left = (
-            activity_sd_first / value(M.SegFrac[s, d_first])
-            - activity_s_prev_d_last / value(M.SegFrac[s_prev, d_last])
-        ) / value(M.CapacityToActivity[r, t])
-        expr_right = -(M.V_Capacity[r, p, t, v] * value(M.RampDown[r, t]))
-        expr = expr_left >= expr_right
-    else:
-        return Constraint.Skip
-
-    return expr
-
-
-def RampUpPeriod_Constraint(M: 'TemoaModel', r, p, t, v):
-    # if p != M.time_future.first():
-    # 	p_prev  = M.time_future.prev(p)
-    # 	s_first = M.time_season.first()
-    # 	s_last  = M.time_season.last()
-    # 	d_first = M.time_of_day.first()
-    # 	d_last  = M.time_of_day.last()
-    # 	expr_left = (
-    # 		M.V_Activity[ p, s_first, d_first, t, v ] -
-    # 		M.V_Activity[ p_prev, s_last, d_last, t, v ]
-    # 		)
-    # 	expr_right = (
-    # 		M.V_Capacity[t, v]*
-    # 		value( M.RampUp[t] )*
-    # 		value( M.CapacityToActivity[ t ] )*
-    # 		value( M.SegFrac[s, d])
-    # 		)
-    # 	expr = (expr_left <= expr_right)
-    # else:
-    # 	return Constraint.Skip
-
-    # return expr
-
-    return Constraint.Skip  # We don't need inter-period ramp up/down constraint.
-
-
-def RampDownPeriod_Constraint(M: 'TemoaModel', r, p, t, v):
-    # if p != M.time_future.first():
-    # 	p_prev  = M.time_future.prev(p)
-    # 	s_first = M.time_season.first()
-    # 	s_last  = M.time_season.last()
-    # 	d_first = M.time_of_day.first()
-    # 	d_last  = M.time_of_day.last()
-    # 	expr_left = (
-    # 		M.V_Activity[ p, s_first, d_first, t, v ] -
-    # 		M.V_Activity[ p_prev, s_last, d_last, t, v ]
-    # 		)
-    # 	expr_right = (
-    # 		-1*
-    # 		M.V_Capacity[t, v]*
-    # 		value( M.RampDown[t] )*
-    # 		value( M.CapacityToActivity[ t ] )*
-    # 		value( M.SegFrac[s, d])
-    # 		)
-    # 	expr = (expr_left >= expr_right)
-    # else:
-    # 	return Constraint.Skip
-
-    # return expr
-
-    return Constraint.Skip  # We don't need inter-period ramp up/down constraint.
 
 
 def ReserveMargin_Constraint(M: 'TemoaModel', r, p, s, d):

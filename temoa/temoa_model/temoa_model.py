@@ -60,10 +60,6 @@ class TemoaModel(AbstractModel):
     # this is used in several places outside this class, and this provides no-build access to it
     default_lifetime_tech = 40
 
-    # Should storage be allowed to store between seasons?
-    # by default we loop storage states within each season
-    interseason_storage = False
-
     def __init__(M, *args, **kwargs):
         AbstractModel.__init__(M, *args, **kwargs)
 
@@ -463,6 +459,7 @@ class TemoaModel(AbstractModel):
         M.StorageInitFrac = Param(M.regions, M.time_optimize, M.time_season, M.tech_storage, M.vintage_all)
 
         M.MyopicBaseyear = Param(default=0)
+        M.link_seasons = Param(default=0) # do states carry from one season to the next? otherwise loop each season
 
         ################################################
         #                 Model Variables              #
@@ -611,14 +608,9 @@ class TemoaModel(AbstractModel):
         # This set works for all the storage-related constraints
         M.StorageConstraints_rpsdtv = Set(dimen=6, initialize=StorageConstraintIndices)
 
-        if TemoaModel.interseason_storage:
-            M.StorageEnergyConstraint = Constraint(
-                M.StorageConstraints_rpsdtv, rule=InterSeasonStorageEnergy_Constraint
-            )
-        else:
-            M.StorageEnergyConstraint = Constraint(
-                M.StorageConstraints_rpsdtv, rule=IntraSeasonStorageEnergy_Constraint
-            )
+        M.StorageEnergyConstraint = Constraint(
+            M.StorageConstraints_rpsdtv, rule=StorageEnergy_Constraint
+        )
 
         # We make use of this following set in some of the storage constraints.
         # Pre-computing it is considerably faster.
@@ -640,33 +632,14 @@ class TemoaModel(AbstractModel):
             M.StorageConstraints_rpsdtv, rule=StorageThroughput_Constraint
         )
 
-        # StorageInit needs an overhaul
         M.StorageInitFracConstraint_rpstv = Set(dimen=5, initialize=StorageInitFracIndices)
         M.StorageInitFracConstraint = Constraint(
             M.StorageInitFracConstraint_rpstv, rule=StorageInitFrac_Constraint
         )
 
-        M.RampConstraintDay_rpsdtv = Set(dimen=6, initialize=RampConstraintDayIndices)
-        M.RampUpConstraintDay = Constraint(M.RampConstraintDay_rpsdtv, rule=RampUpDay_Constraint)
-        M.RampDownConstraintDay = Constraint(
-            M.RampConstraintDay_rpsdtv, rule=RampDownDay_Constraint
-        )
-
-        # M.RampConstraintSeason_rpstv = Set(dimen=5, initialize=RampConstraintSeasonIndices)
-        # M.RampUpConstraintSeason = Constraint(
-        #     M.RampConstraintSeason_rpstv, rule=RampUpSeason_Constraint
-        # )
-        # M.RampDownConstraintSeason = Constraint(
-        #     M.RampConstraintSeason_rpstv, rule=RampDownSeason_Constraint
-        # )
-
-        M.RampConstraintPeriod_rptv = Set(dimen=4, initialize=RampConstraintPeriodIndices)
-        M.RampUpConstraintPeriod = Constraint(
-            M.RampConstraintPeriod_rptv, rule=RampUpPeriod_Constraint
-        )
-        M.RampDownConstraintPeriod = Constraint(
-            M.RampConstraintPeriod_rptv, rule=RampDownPeriod_Constraint
-        )
+        M.RampConstraint_rpsdtv = Set(dimen=6, initialize=RampConstraintIndices)
+        M.RampUpConstraint = Constraint(M.RampConstraint_rpsdtv, rule=RampUpDay_Constraint)
+        M.RampDownConstraint = Constraint(M.RampConstraint_rpsdtv, rule=RampDownDay_Constraint)
 
         M.ReserveMargin_rpsd = Set(dimen=4, initialize=ReserveMarginIndices)
         M.ReserveMarginConstraint = Constraint(M.ReserveMargin_rpsd, rule=ReserveMargin_Constraint)
