@@ -223,7 +223,6 @@ class TableWriter:
             cur.execute(f'DELETE FROM {table} WHERE scenario like ?', (target,))
         self.con.commit()
         for table in optional_output_tables:
-            print(table)
             try:
                 cur.execute(f'DELETE FROM {table} WHERE scenario like ?', (target,))
             except sqlite3.OperationalError:
@@ -359,7 +358,7 @@ class TableWriter:
             if iteration is not None
             else self.config.scenario
         )
-        print(scenario)
+
         for fi in self.flow_register:
             sector = self.tech_sectors.get(fi.t)
             for flow_type in self.flow_register[fi]:
