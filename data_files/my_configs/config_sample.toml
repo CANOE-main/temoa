@@ -42,7 +42,7 @@ price_check = true
 # recommended to ensure proper performance.  Results are reported in log file
 # This requires that source commodities be marked with 's' in Commodity table
 # This is required for Myopic runs
-source_trace = false
+source_trace = true
 
 # Produce HTML files for Commodity Networks.  Requires source_trace above
 plot_commodity_network = true
