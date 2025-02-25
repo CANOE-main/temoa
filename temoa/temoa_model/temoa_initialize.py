@@ -199,6 +199,137 @@ def validate_SegFrac(M: 'TemoaModel'):
         raise Exception(msg.format(items, total))
 
 
+def validate_min_tech_splits(M: 'TemoaModel'):
+    """
+    Validates that the TechInputSplitMin and TechOutputSplitMin parameters
+    don't create infeasible problems by requiring more than 100% allocation.
+    """
+    # Check TechInputSplitMin
+    for r, p, t in {(r, p, t) for r, p, i, t in M.TechInputSplitMin.keys()}:
+        sum_min = sum(M.TechInputSplitMin[r, p, i, t]
+                      for i in M.commodity_physical
+                      if (r, p, i, t) in M.TechInputSplitMin)
+        if sum_min > 1.001:  # Allow for small floating point errors
+            msg = (f"Error: Sum of TechInputSplitMin for (r={r}, p={p}, t={t}) is {sum_min}, "
+                   f"which exceeds 1.0. This creates an infeasible problem.")
+            logger.error(msg)
+            raise ValueError(msg)
+
+    # Check TechOutputSplitMin
+    for r, p, t in {(r, p, t) for r, p, t, o in M.TechOutputSplitMin.keys()}:
+        sum_min = sum(M.TechOutputSplitMin[r, p, t, o]
+                      for o in M.commodity_carrier
+                      if (r, p, t, o) in M.TechOutputSplitMin)
+        if sum_min > 1.001:  # Allow for small floating point errors
+            msg = (f"Error: Sum of TechOutputSplitMin for (r={r}, p={p}, t={t}) is {sum_min}, "
+                   f"which exceeds 1.0. This creates an infeasible problem.")
+            logger.error(msg)
+            raise ValueError(msg)
+
+    logger.debug('Completed validation of technology splits')
+
+
+def validate_max_tech_splits(M: 'TemoaModel'):
+    """
+    Validates that the TechInputSplitMax and TechOutputSplitMax parameters
+    don't create infeasible problems by restricting total allocation to less than 100%.
+
+    A set of max splits is considered valid if either:
+    1. The sum of all max constraints is at least 1.0, or
+    2. At least one input/output commodity doesn't have a max constraint
+       (allowing it to take any remaining share needed)
+    """
+    # Check TechInputSplitMax
+    for r, p, t in {(r, p, t) for r, p, i, t in M.TechInputSplitMax.keys()}:
+        # Get all inputs used by this tech in this region and period
+        all_inputs = set()
+        for v in M.processVintages.get((r, p, t), []):
+            all_inputs.update(M.processInputs.get((r, p, t, v), set()))
+
+        # Check if all inputs have max constraints
+        all_constrained = True
+        for i in all_inputs:
+            if (r, p, i, t) not in M.TechInputSplitMax:
+                all_constrained = False
+                break
+
+        # Only need to check sum if all inputs are constrained
+        if all_constrained and all_inputs:
+            sum_max = sum(M.TechInputSplitMax[r, p, i, t]
+                          for i in all_inputs
+                          if (r, p, i, t) in M.TechInputSplitMax)
+            if sum_max < 0.999:  # Allow for small floating point errors
+                msg = (f"Warning: Sum of TechInputSplitMax for (r={r}, p={p}, t={t}) is {sum_max}, "
+                       f"which is less than 1.0, and all inputs are constrained. "
+                       f"This may create an infeasible problem.")
+                logger.warning(msg)
+
+    # Check TechOutputSplitMax
+    for r, p, t in {(r, p, t) for r, p, t, o in M.TechOutputSplitMax.keys()}:
+        # Get all outputs produced by this tech in this region and period
+        all_outputs = set()
+        for v in M.processVintages.get((r, p, t), []):
+            all_outputs.update(M.processOutputs.get((r, p, t, v), set()))
+
+        # Check if all outputs have max constraints
+        all_constrained = True
+        for o in all_outputs:
+            if (r, p, t, o) not in M.TechOutputSplitMax:
+                all_constrained = False
+                break
+
+        # Only need to check sum if all outputs are constrained
+        if all_constrained and all_outputs:
+            sum_max = sum(M.TechOutputSplitMax[r, p, t, o]
+                          for o in all_outputs
+                          if (r, p, t, o) in M.TechOutputSplitMax)
+            if sum_max < 0.999:  # Allow for small floating point errors
+                msg = (f"Warning: Sum of TechOutputSplitMax for (r={r}, p={p}, t={t}) is {sum_max}, "
+                       f"which is less than 1.0, and all outputs are constrained. "
+                       f"This may create an infeasible problem.")
+                logger.warning(msg)
+
+    logger.debug('Completed validation of max technology splits')
+
+
+def validate_min_max_consistency(M: 'TemoaModel'):
+    """
+    Validates that the minimum split constraints don't exceed their
+    corresponding maximum constraints for the same commodity.
+
+    For each (r,p,i,t) combination that appears in both TechInputSplitMin and TechInputSplitMax,
+    checks that TechInputSplitMin <= TechInputSplitMax.
+
+    Similarly for each (r,p,t,o) in both TechOutputSplitMin and TechOutputSplitMax.
+    """
+    # Check input splits
+    for r, p, i, t in set(M.TechInputSplitMin.keys()) & set(M.TechInputSplitMax.keys()):
+        min_value = value(M.TechInputSplitMin[r, p, i, t])
+        max_value = value(M.TechInputSplitMax[r, p, i, t])
+
+        if min_value > max_value + 0.001:  # Allow for small floating point errors
+            msg = (f"Error: For (r={r}, p={p}, i={i}, t={t}), TechInputSplitMin ({min_value}) "
+                   f"exceeds TechInputSplitMax ({max_value}). This creates an infeasible problem.")
+            logger.error(msg)
+            raise ValueError(msg)
+
+    # Check output splits
+    for r, p, t, o in set(M.TechOutputSplitMin.keys()) & set(M.TechOutputSplitMax.keys()):
+        min_value = value(M.TechOutputSplitMin[r, p, t, o])
+        max_value = value(M.TechOutputSplitMax[r, p, t, o])
+
+        if min_value > max_value + 0.001:  # Allow for small floating point errors
+            msg = (f"Error: For (r={r}, p={p}, t={t}, o={o}), TechOutputSplitMin ({min_value}) "
+                   f"exceeds TechOutputSplitMax ({max_value}). This creates an infeasible problem.")
+            logger.error(msg)
+            raise ValueError(msg)
+
+    # Also check between Min and Average if they're meant to represent the same concept
+    # (Include this if TechInputSplitAverage and TechOutputSplitAverage should be compatible
+    # with Min/Max constraints)
+
+    logger.debug('Completed validation of min-max consistency for technology splits')
+
 def CheckEfficiencyIndices(M: 'TemoaModel'):
     """
     Ensure that there are no unused items in any of the Efficiency index sets.
@@ -678,7 +809,7 @@ def CreateSparseDicts(M: 'TemoaModel'):
                 M.storageVintages[r, p, t] = set()
             if t in M.tech_ramping and (r, p, t) not in M.rampVintages:
                 M.rampVintages[r, p, t] = set()
-            if (r, p, i, t) in M.TechInputSplit.sparse_iterkeys() and (
+            if (r, p, i, t) in M.TechInputSplitMin.sparse_iterkeys() and (
                 r,
                 p,
                 i,
@@ -692,7 +823,7 @@ def CreateSparseDicts(M: 'TemoaModel'):
                 t,
             ) not in M.inputsplitaverageVintages:
                 M.inputsplitaverageVintages[r, p, i, t] = set()
-            if (r, p, t, o) in M.TechOutputSplit.sparse_iterkeys() and (
+            if (r, p, t, o) in M.TechOutputSplitMin.sparse_iterkeys() and (
                 r,
                 p,
                 t,
@@ -739,11 +870,11 @@ def CreateSparseDicts(M: 'TemoaModel'):
                 M.storageVintages[r, p, t].add(v)
             if t in M.tech_ramping:
                 M.rampVintages[r, p, t].add(v)
-            if (r, p, i, t) in M.TechInputSplit.sparse_iterkeys():
+            if (r, p, i, t) in M.TechInputSplitMin.sparse_iterkeys():
                 M.inputsplitVintages[r, p, i, t].add(v)
             if (r, p, i, t) in M.TechInputSplitAverage.sparse_iterkeys():
                 M.inputsplitaverageVintages[r, p, i, t].add(v)
-            if (r, p, t, o) in M.TechOutputSplit.sparse_iterkeys():
+            if (r, p, t, o) in M.TechOutputSplitMin.sparse_iterkeys():
                 M.outputsplitVintages[r, p, t, o].add(v)
             if (r, p, t, o) in M.TechOutputSplitAverage.sparse_iterkeys():
                 M.outputsplitaverageVintages[r, p, t, o].add(v)
