@@ -9,7 +9,7 @@
 
 # Scenario Name (Mandatory)
 # This scenario name is used to label results within the output .sqlite file
-scenario = "zulu"
+scenario = "test"
 
 # Scenaio Mode (Mandatory)
 # See documentation for explanations.  A standard single run is "perfect_foresight"
@@ -33,7 +33,7 @@ output_database = "data_files/example_dbs/utopia.sqlite"
 
 # Check the pricing structure for common errors, which are reported in the log file
 # Strongly recommended
-price_check = true
+price_check = false
 
 # Check the network connectivity for processes in the model.  Strongly
 # recommended to ensure proper performance.  Results are reported in log file
@@ -42,7 +42,7 @@ price_check = true
 source_trace = true
 
 # Produce HTML files for Commodity Networks.  Requires source_trace above
-plot_commodity_network = true
+plot_commodity_network = false
 
 # ------------------------------------
 #             SOLVER
@@ -55,7 +55,7 @@ neos = false
 # solver (Mandatory)
 # Depending on what client machine has installed.
 #  [cbc, appsi_highs, gurobi, cplex, ...]
-solver_name = "cbc"
+solver_name = "cplex"
 
 # ------------------------------------
 #             OUTPUTS
@@ -63,7 +63,7 @@ solver_name = "cbc"
 # ------------------------------------
 
 # generate an Excel file in the output_files folder
-save_excel = true
+save_excel = false
 
 # save the duals in the output Database (may slow execution slightly?)
 save_duals = false

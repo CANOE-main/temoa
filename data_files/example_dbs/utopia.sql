@@ -428,10 +428,10 @@ CREATE TABLE DemandSpecificDistribution
         REFERENCES TimeOfDay (tod),
     demand_name TEXT
         REFERENCES Commodity (name),
-    dds         REAL,
-    dds_notes   TEXT,
+    dsd         REAL,
+    dsd_notes   TEXT,
     PRIMARY KEY (region, season, tod, demand_name),
-    CHECK (dds >= 0 AND dds <= 1)
+    CHECK (dsd >= 0 AND dsd <= 1)
 );
 INSERT INTO DemandSpecificDistribution VALUES('utopia','inter','day','RH',0.1199999999999999956,'');
 INSERT INTO DemandSpecificDistribution VALUES('utopia','inter','night','RH',0.05999999999999999778,'');
@@ -971,7 +971,7 @@ INSERT INTO TechnologyType VALUES('r','resource technology');
 INSERT INTO TechnologyType VALUES('p','production technology');
 INSERT INTO TechnologyType VALUES('pb','baseload production technology');
 INSERT INTO TechnologyType VALUES('ps','storage production technology');
-CREATE TABLE TechInputSplit
+CREATE TABLE TechInputSplitMin
 (
     region         TEXT,
     period         INTEGER
@@ -981,6 +981,19 @@ CREATE TABLE TechInputSplit
     tech           TEXT
         REFERENCES Technology (tech),
     min_proportion REAL,
+    notes          TEXT,
+    PRIMARY KEY (region, period, input_comm, tech)
+);
+CREATE TABLE TechInputSplitMax
+(
+    region         TEXT,
+    period         INTEGER
+        REFERENCES TimePeriod (period),
+    input_comm     TEXT
+        REFERENCES Commodity (name),
+    tech           TEXT
+        REFERENCES Technology (tech),
+    max_proportion REAL,
     notes          TEXT,
     PRIMARY KEY (region, period, input_comm, tech)
 );
@@ -997,7 +1010,7 @@ CREATE TABLE TechInputSplitAverage
     notes          TEXT,
     PRIMARY KEY (region, period, input_comm, tech)
 );
-CREATE TABLE TechOutputSplit
+CREATE TABLE TechOutputSplitMin
 (
     region         TEXT,
     period         INTEGER
@@ -1010,12 +1023,25 @@ CREATE TABLE TechOutputSplit
     notes          TEXT,
     PRIMARY KEY (region, period, tech, output_comm)
 );
-INSERT INTO TechOutputSplit VALUES('utopia',1990,'SRE','DSL',0.6999999999999999556,'');
-INSERT INTO TechOutputSplit VALUES('utopia',2000,'SRE','DSL',0.6999999999999999556,'');
-INSERT INTO TechOutputSplit VALUES('utopia',2010,'SRE','DSL',0.6999999999999999556,'');
-INSERT INTO TechOutputSplit VALUES('utopia',1990,'SRE','GSL',0.2999999999999999889,'');
-INSERT INTO TechOutputSplit VALUES('utopia',2000,'SRE','GSL',0.2999999999999999889,'');
-INSERT INTO TechOutputSplit VALUES('utopia',2010,'SRE','GSL',0.2999999999999999889,'');
+INSERT INTO TechOutputSplitMin VALUES('utopia',1990,'SRE','DSL',0.6999999999999999556,'');
+INSERT INTO TechOutputSplitMin VALUES('utopia',2000,'SRE','DSL',0.6999999999999999556,'');
+INSERT INTO TechOutputSplitMin VALUES('utopia',2010,'SRE','DSL',0.6999999999999999556,'');
+INSERT INTO TechOutputSplitMin VALUES('utopia',1990,'SRE','GSL',0.2999999999999999889,'');
+INSERT INTO TechOutputSplitMin VALUES('utopia',2000,'SRE','GSL',0.2999999999999999889,'');
+INSERT INTO TechOutputSplitMin VALUES('utopia',2010,'SRE','GSL',0.2999999999999999889,'');
+CREATE TABLE TechOutputSplitMax
+(
+    region         TEXT,
+    period         INTEGER
+        REFERENCES TimePeriod (period),
+    tech           TEXT
+        REFERENCES Technology (tech),
+    output_comm    TEXT
+        REFERENCES Commodity (name),
+    max_proportion REAL,
+    notes          TEXT,
+    PRIMARY KEY (region, period, tech, output_comm)
+);
 CREATE TABLE TimeOfDay
 (
     sequence INTEGER UNIQUE,

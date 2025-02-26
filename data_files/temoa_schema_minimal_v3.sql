@@ -513,7 +513,7 @@ VALUES ('pb', 'baseload production technology');
 REPLACE INTO TechnologyType
 VALUES ('ps', 'storage production technology');
 
-CREATE TABLE IF NOT EXISTS TechInputSplit
+CREATE TABLE IF NOT EXISTS TechInputSplitMin
 (
     region         TEXT,
     period         INTEGER
@@ -523,6 +523,19 @@ CREATE TABLE IF NOT EXISTS TechInputSplit
     tech           TEXT
         REFERENCES Technology (tech),
     min_proportion REAL,
+    notes          TEXT,
+    PRIMARY KEY (region, period, input_comm, tech)
+);
+CREATE TABLE IF NOT EXISTS TechInputSplitMax
+(
+    region         TEXT,
+    period         INTEGER
+        REFERENCES TimePeriod (period),
+    input_comm     TEXT
+        REFERENCES Commodity (name),
+    tech           TEXT
+        REFERENCES Technology (tech),
+    max_proportion REAL,
     notes          TEXT,
     PRIMARY KEY (region, period, input_comm, tech)
 );
@@ -539,7 +552,7 @@ CREATE TABLE IF NOT EXISTS TechInputSplitAverage
     notes          TEXT,
     PRIMARY KEY (region, period, input_comm, tech)
 );
-CREATE TABLE IF NOT EXISTS TechOutputSplit
+CREATE TABLE IF NOT EXISTS TechOutputSplitMin
 (
     region         TEXT,
     period         INTEGER
@@ -549,6 +562,19 @@ CREATE TABLE IF NOT EXISTS TechOutputSplit
     output_comm    TEXT
         REFERENCES Commodity (name),
     min_proportion REAL,
+    notes          TEXT,
+    PRIMARY KEY (region, period, tech, output_comm)
+);
+CREATE TABLE IF NOT EXISTS TechOutputSplitMax
+(
+    region         TEXT,
+    period         INTEGER
+        REFERENCES TimePeriod (period),
+    tech           TEXT
+        REFERENCES Technology (tech),
+    output_comm    TEXT
+        REFERENCES Commodity (name),
+    max_proportion REAL,
     notes          TEXT,
     PRIMARY KEY (region, period, tech, output_comm)
 );
