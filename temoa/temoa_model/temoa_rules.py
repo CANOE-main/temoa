@@ -824,7 +824,6 @@ reduces computational burden.
         for S_o in M.ProcessOutputsByInput[r, p, S_t, S_v, c]
     )
 
-    # TODO:  This needs CURTAILMENT in the numerator
     vflow_in_ToNonStorage = sum(
         M.V_FlowOut[r, p, s, d, c, S_t, S_v, S_o] / value(M.Efficiency[r, c, S_t, S_v, S_o])
         for S_t, S_v in M.commodityDStreamProcess[r, p, c]
@@ -883,7 +882,8 @@ reduces computational burden.
         )
 
     CommodityBalanceConstraintErrorCheck(
-        vflow_out + interregional_imports,
+        vflow_out
+        + interregional_imports,
         vflow_in_ToStorage
         + vflow_in_ToNonStorage
         + vflow_in_ToNonStorageAnnual

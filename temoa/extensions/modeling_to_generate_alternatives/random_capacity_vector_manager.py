@@ -105,17 +105,24 @@ class RandomCapacityVectorManager(VectorManager):
         self.hull_points: np.ndarray | None = None
         self.hull: Hull | None = None
 
+        # include minimise/maximise basis (sum of category) runs?
+        self.include_min = False # -> These runs can be very unstable due to degenerate solutions
+        self.include_max = True # -> These runs can also be a bit unstable due to flat solution spaces
+
+        # Should we save the random vector objectives each run and reuse them?
+        # allows repeatable MGA vectors if categories dont change
+        self.reuse_random_vectors = True
+
         self.initialize()
         self.basis_coefficients: Queue[np.ndarray] = self._generate_basis_coefficients(
             self.category_mapping, self.technology_size, self.include_min, self.include_max
         )
 
-        # monitor/report the size of the hull for each new point.  May cause some slowdown due to
-        # hull re-computes, but it seems quite fast RN.
-        self.hull_monitor = False # -> Only works for very small number of categories, scales poorly
-        self.include_min = False # -> These runs can be very unstable due to degenerate solutions
-        self.include_max = True # -> These runs can also be a bit unstable due to flat solution spaces
+        # monitor/report the size of the hull for each new point.
+        # only works for very small number of categories, scales poorly
+        self.hull_monitor = False
         self.perf_data = {}
+        
 
     def initialize(self) -> None:
         """
@@ -130,7 +137,7 @@ class RandomCapacityVectorManager(VectorManager):
         for row in raw:
             cat, tech = row
             if cat in {None, ''}:
-                #cat = default_cat # TODO Why? This would clump every uncategorised tech into one giant category for MGA
+                #cat = default_cat # devnote: Why? This would clump every uncategorised tech into one giant category for MGA
                 continue
             if tech in techs_implemented:
                 self.category_mapping[cat].append(tech)
@@ -162,31 +169,34 @@ class RandomCapacityVectorManager(VectorManager):
         
         # --------------------------------------------------------------------------------------------------
         # This block only if saving and reusing random vectors
-        if self.random_vector_table is None: self.random_vector_table = self.get_random_vectors_cache()
-        
-        df = self.random_vector_table
-        if df is None:
-            print("Created random vector table.")
-            coeffs = np.random.random(len(var_vec)) - 0.5
-            df = pd.DataFrame(index=[str(var) for var in var_vec], data=coeffs, columns=[new_model.name])
-            df.to_csv('mga_random_vectors.csv')
-            df.to_csv(Path(get_OUTPUT_PATH(), 'mga_random_vectors.csv'))
+        if self.reuse_random_vectors:
+            if self.random_vector_table is None: self.random_vector_table = self.get_random_vectors_cache()
+            
+            df = self.random_vector_table
+            file = 'temoa/extensions/modeling_to_generate_alternatives/mga_random_vectors.csv'
+            if df is None:
+                print("Created random vector table.")
+                coeffs = np.random.random(len(var_vec)) - 0.5
+                df = pd.DataFrame(index=[str(var) for var in var_vec], data=coeffs, columns=[new_model.name])
+                df.to_csv(file)
+                df.to_csv(Path(get_OUTPUT_PATH(), 'mga_random_vectors.csv'))
 
-        if new_model.name in df.columns:
-            print("Running a random vector from table.")
-            coeffs = np.array([df[new_model.name][str(var)] for var in var_vec])
-        else:
-            print("Running a new random vector.")
-            coeffs = np.random.random(len(var_vec)) - 0.5
-            df_2 = pd.DataFrame(index=[str(var) for var in var_vec], data=coeffs, columns=[new_model.name])
-            df = pd.concat([df, df_2], axis='columns')
-            df.to_csv('mga_random_vectors.csv')
-            df.to_csv(Path(get_OUTPUT_PATH(), 'mga_random_vectors.csv'))
+            if new_model.name in df.columns:
+                print("Running a random vector from table.")
+                coeffs = np.array([df[new_model.name][str(var)] for var in var_vec])
+            else:
+                print("Running a new random vector.")
+                coeffs = np.random.random(len(var_vec)) - 0.5
+                df_2 = pd.DataFrame(index=[str(var) for var in var_vec], data=coeffs, columns=[new_model.name])
+                df = pd.concat([df, df_2], axis='columns')
+                df.to_csv(file)
+                df.to_csv(Path(get_OUTPUT_PATH(), 'mga_random_vectors.csv'))
 
-        self.random_vector_table = df
+            self.random_vector_table = df
         # --------------------------------------------------------------------------------------------------
+        else:
+            coeffs = np.random.random(len(var_vec)) # If we aren't saving and reusing the random vectors
 
-        #coeffs = np.random.random(len(var_vec)) # If we aren't saving and reusing the random vectors
         coeffs /= sum(abs(coeffs))
         obj_expr = quicksum(c * e for c, e in zip(coeffs, cost_vec))
         new_model.obj = Objective(expr=obj_expr)
@@ -194,7 +204,7 @@ class RandomCapacityVectorManager(VectorManager):
         return new_model
     
     def get_random_vectors_cache(self) -> pd.DataFrame:
-        file = 'mga_random_vectors.csv'
+        file = 'temoa/extensions/modeling_to_generate_alternatives/mga_random_vectors.csv'
         if os.path.isfile(file):
             print("Got random vector table from file.")
             return pd.read_csv(file, index_col=0)
