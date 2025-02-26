@@ -775,15 +775,18 @@ class TemoaModel(AbstractModel):
             M.MaxAnnualCapacityFactorConstraint_rpto, rule=MaxAnnualCapacityFactor_Constraint
         )
 
-        M.TechInputSplitConstraint_rpsditv = Set(
-            dimen=7, initialize=TechInputSplitConstraintIndices
+        M.TechInputSplitMinConstraint_rpsditv = Set(
+            dimen=7, initialize=TechInputSplitMinConstraintIndices
         )
         M.TechInputSplitMinConstraint = Constraint(
-            M.TechInputSplitConstraint_rpsditv, rule=TechInputSplitMin_Constraint
+            M.TechInputSplitMinConstraint_rpsditv, rule=TechInputSplitMin_Constraint
         )
 
+        M.TechInputSplitMaxConstraint_rpsditv = Set(
+            dimen=7, initialize=TechInputSplitMaxConstraintIndices
+        )
         M.TechInputSplitMaxConstraint = Constraint(
-            M.TechInputSplitConstraint_rpsditv, rule=TechInputSplitMax_Constraint
+            M.TechInputSplitMaxConstraint_rpsditv, rule=TechInputSplitMax_Constraint
         )
 
         M.TechInputSplitAnnualConstraint_rpitv = Set(
@@ -800,16 +803,20 @@ class TemoaModel(AbstractModel):
             M.TechInputSplitAverageConstraint_rpitv, rule=TechInputSplitAverage_Constraint
         )
 
-        M.TechOutputSplitConstraint_rpsdtvo = Set(
-            dimen=7, initialize=TechOutputSplitConstraintIndices
+        M.TechOutputSplitMinConstraint_rpsdtvo = Set(
+            dimen=7, initialize=TechOutputSplitMinConstraintIndices
         )
 
         M.TechOutputSplitMinConstraint = Constraint(
-            M.TechOutputSplitConstraint_rpsdtvo, rule=TechOutputSplitMin_Constraint
+            M.TechOutputSplitMinConstraint_rpsdtvo, rule=TechOutputSplitMin_Constraint
+        )
+
+        M.TechOutputSplitMaxConstraint_rpsdtvo = Set(
+            dimen=7, initialize=TechOutputSplitMaxConstraintIndices
         )
 
         M.TechOutputSplitMaxConstraint = Constraint(
-            M.TechOutputSplitConstraint_rpsdtvo, rule=TechOutputSplitMax_Constraint
+            M.TechOutputSplitMaxConstraint_rpsdtvo, rule=TechOutputSplitMax_Constraint
         )
 
         M.TechOutputSplitAnnualConstraint_rptvo = Set(

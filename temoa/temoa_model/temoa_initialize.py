@@ -1436,23 +1436,49 @@ def ReserveMarginIndices(M: 'TemoaModel'):
     return indices
 
 
-def TechInputSplitConstraintIndices(M: 'TemoaModel'):
+def TechInputSplitMinConstraintIndices(M: 'TemoaModel'):
     indices = set(
         (r, p, s, d, i, t, v)
-        for r, p, i, t in M.inputsplitVintages.keys()
-        if t not in M.tech_annual
+        for r, p, i, t in M.TechInputSplitMin.sparse_iterkeys()
+        if t not in M.tech_annual and (r, p, i, t) in M.inputsplitVintages
         for v in M.inputsplitVintages[r, p, i, t]
         for s in M.time_season
         for d in M.time_of_day
     )
+
     ann_indices = set(
         (r, p, i, t)
-        for r, p, i, t in M.inputsplitVintages.keys()
+        for r, p, i, t in M.TechInputSplitMin.sparse_iterkeys()
         if t in M.tech_annual
     )
     if len(ann_indices) > 0:
         msg = (
-            "Warning: Annual technologies included in TechInputSplit table. "
+            "Warning: Annual technologies included in TechInputSplitMin table. "
+            "Use TechInputSplitAverage table instead or these constraints will be ignored: {}"
+        )
+        logger.warning(msg.format(ann_indices))
+
+    return indices
+
+
+def TechInputSplitMaxConstraintIndices(M: 'TemoaModel'):
+    indices = set(
+        (r, p, s, d, i, t, v)
+        for r, p, i, t in M.TechInputSplitMax.sparse_iterkeys()
+        if t not in M.tech_annual and (r, p, i, t) in M.inputsplitVintages
+        for v in M.inputsplitVintages[r, p, i, t]
+        for s in M.time_season
+        for d in M.time_of_day
+    )
+
+    ann_indices = set(
+        (r, p, i, t)
+        for r, p, i, t in M.TechInputSplitMax.sparse_iterkeys()
+        if t in M.tech_annual
+    )
+    if len(ann_indices) > 0:
+        msg = (
+            "Warning: Annual technologies included in TechInputSplitMax table. "
             "Use TechInputSplitAverage table instead or these constraints will be ignored: {}"
         )
         logger.warning(msg.format(ann_indices))
@@ -1481,23 +1507,49 @@ def TechInputSplitAverageConstraintIndices(M: 'TemoaModel'):
     return indices
 
 
-def TechOutputSplitConstraintIndices(M: 'TemoaModel'):
+def TechOutputSplitMinConstraintIndices(M: 'TemoaModel'):
     indices = set(
         (r, p, s, d, t, v, o)
-        for r, p, t, o in M.outputsplitVintages.keys()
+        for r, p, t, o in M.TechOutputSplitMin.sparse_iterkeys()
         if t not in M.tech_annual
         for v in M.outputsplitVintages[r, p, t, o]
         for s in M.time_season
         for d in M.time_of_day
     )
+
     ann_indices = set(
         (r, p, t, o)
-        for r, p, t, o in M.outputsplitVintages.keys()
+        for r, p, t, o in M.TechOutputSplitMin.sparse_iterkeys()
         if t in M.tech_annual
     )
     if len(ann_indices) > 0:
         msg = (
-            "Warning: Annual technologies included in TechOutputSplit table. "
+            "Warning: Annual technologies included in TechOutputSplitMin table. "
+            "Use TechOutputSplitAverage table instead or these constraints will be ignored: {}"
+        )
+        logger.warning(msg.format(ann_indices))
+
+    return indices
+
+
+def TechOutputSplitMaxConstraintIndices(M: 'TemoaModel'):
+    indices = set(
+        (r, p, s, d, t, v, o)
+        for r, p, t, o in M.TechOutputSplitMax.sparse_iterkeys()
+        if t not in M.tech_annual
+        for v in M.outputsplitVintages[r, p, t, o]
+        for s in M.time_season
+        for d in M.time_of_day
+    )
+
+    ann_indices = set(
+        (r, p, t, o)
+        for r, p, t, o in M.TechOutputSplitMax.sparse_iterkeys()
+        if t in M.tech_annual
+    )
+    if len(ann_indices) > 0:
+        msg = (
+            "Warning: Annual technologies included in TechOutputSplitMax table. "
             "Use TechOutputSplitAverage table instead or these constraints will be ignored: {}"
         )
         logger.warning(msg.format(ann_indices))

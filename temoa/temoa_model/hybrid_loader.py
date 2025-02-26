@@ -583,18 +583,31 @@ class HybridLoader:
         raw = cur.execute('SELECT region, tech, lifetime FROM main.LoanLifetimeTech').fetchall()
         load_element(M.LoanLifetimeTech, raw, self.viable_rt, (0, 1))
 
-        # TechInputSplit
+        # TechInputSplitMin
         if mi:
             raw = cur.execute(
-                'SELECT region, period, input_comm, tech, min_proportion FROM main.TechInputSplit '
+                'SELECT region, period, input_comm, tech, min_proportion FROM main.TechInputSplitMin '
                 'WHERE period >= ? AND period <= ?',
                 (mi.base_year, mi.last_demand_year),
             ).fetchall()
         else:
             raw = cur.execute(
-                'SELECT region, period, input_comm, tech, min_proportion FROM main.TechInputSplit '
+                'SELECT region, period, input_comm, tech, min_proportion FROM main.TechInputSplitMin '
             ).fetchall()
-        load_element(M.TechInputSplit, raw, self.viable_rt, (0, 3))
+        load_element(M.TechInputSplitMin, raw, self.viable_rt, (0, 3))
+
+        # TechInputSplitMax
+        if mi:
+            raw = cur.execute(
+                'SELECT region, period, input_comm, tech, max_proportion FROM main.TechInputSplitMax '
+                'WHERE period >= ? AND period <= ?',
+                (mi.base_year, mi.last_demand_year),
+            ).fetchall()
+        else:
+            raw = cur.execute(
+                'SELECT region, period, input_comm, tech, max_proportion FROM main.TechInputSplitMax '
+            ).fetchall()
+        load_element(M.TechInputSplitMax, raw, self.viable_rt, (0, 3))
 
         # TechInputSplitAverage
         if self.table_exists('TechInputSplitAverage'):
@@ -612,19 +625,33 @@ class HybridLoader:
                 ).fetchall()
             load_element(M.TechInputSplitAverage, raw, self.viable_rt, (0, 3))
 
-        # TechOutputSplit
-        if self.table_exists('TechOutputSplit'):
+        # TechOutputSplitMax
+        if self.table_exists('TechOutputSplitMax'):
             if mi:
                 raw = cur.execute(
-                    'SELECT region, period, tech, output_comm, min_proportion FROM main.TechOutputSplit '
+                    'SELECT region, period, tech, output_comm, max_proportion FROM main.TechOutputSplitMax '
                     'WHERE period >= ? AND period <= ?',
                     (mi.base_year, mi.last_demand_year),
                 ).fetchall()
             else:
                 raw = cur.execute(
-                    'SELECT region, period, tech, output_comm, min_proportion FROM main.TechOutputSplit '
+                    'SELECT region, period, tech, output_comm, max_proportion FROM main.TechOutputSplitMax '
                 ).fetchall()
-            load_element(M.TechOutputSplit, raw, self.viable_rt, (0, 2))
+            load_element(M.TechOutputSplitMax, raw, self.viable_rt, (0, 2))
+
+            # TechOutputSplitMin
+            if self.table_exists('TechOutputSplitMin'):
+                if mi:
+                    raw = cur.execute(
+                        'SELECT region, period, tech, output_comm, min_proportion FROM main.TechOutputSplitMin '
+                        'WHERE period >= ? AND period <= ?',
+                        (mi.base_year, mi.last_demand_year),
+                    ).fetchall()
+                else:
+                    raw = cur.execute(
+                        'SELECT region, period, tech, output_comm, min_proportion FROM main.TechOutputSplitMin '
+                    ).fetchall()
+                load_element(M.TechOutputSplitMin, raw, self.viable_rt, (0, 2))
 
         # TechOutputSplitAverage
         if self.table_exists('TechOutputSplitAverage'):
