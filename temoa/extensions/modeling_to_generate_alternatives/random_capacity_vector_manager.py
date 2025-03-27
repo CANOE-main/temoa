@@ -162,6 +162,9 @@ class RandomCapacityVectorManager(VectorManager):
     def group_variable_names(self, tech) -> list[Var]:
         return list(self.category_mapping.keys())
 
+    def random_coefficients(n: int):
+        return np.random.random(n) - 0.5
+    
     def random_input_vector_model(self) -> TemoaModel:
         new_model = self.base_model.clone()
         new_model.name = self.new_model_name()
@@ -176,26 +179,25 @@ class RandomCapacityVectorManager(VectorManager):
             file = 'temoa/extensions/modeling_to_generate_alternatives/mga_random_vectors.csv'
             if df is None:
                 print("Created random vector table.")
-                coeffs = np.random.random(len(var_vec)) - 0.5
+                coeffs = self.random_coefficients(len(var_vec))
                 df = pd.DataFrame(index=[str(var) for var in var_vec], data=coeffs, columns=[new_model.name])
-                df.to_csv(file)
-                df.to_csv(Path(get_OUTPUT_PATH(), 'mga_random_vectors.csv'))
 
             if new_model.name in df.columns:
                 print("Running a random vector from table.")
                 coeffs = np.array([df[new_model.name][str(var)] for var in var_vec])
             else:
                 print("Running a new random vector.")
-                coeffs = np.random.random(len(var_vec)) - 0.5
+                coeffs = self.random_coefficients(len(var_vec))
                 df_2 = pd.DataFrame(index=[str(var) for var in var_vec], data=coeffs, columns=[new_model.name])
                 df = pd.concat([df, df_2], axis='columns')
-                df.to_csv(file)
-                df.to_csv(Path(get_OUTPUT_PATH(), 'mga_random_vectors.csv'))
+
+            df.to_csv(file)
+            df.to_csv(Path(get_OUTPUT_PATH(), 'mga_random_vectors.csv'))
 
             self.random_vector_table = df
         # --------------------------------------------------------------------------------------------------
         else:
-            coeffs = np.random.random(len(var_vec)) # If we aren't saving and reusing the random vectors
+            coeffs = self.random_coefficients(len(var_vec)) # If we aren't saving and reusing the random vectors
 
         coeffs /= sum(abs(coeffs))
         obj_expr = quicksum(c * e for c, e in zip(coeffs, cost_vec))
