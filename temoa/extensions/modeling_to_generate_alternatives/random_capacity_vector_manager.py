@@ -143,6 +143,13 @@ class RandomCapacityVectorManager(VectorManager):
                 self.category_mapping[cat].append(tech)
                 self.variable_index_mapping[tech] = defaultdict(list)
 
+        if len(self.category_mapping) == 0:
+            msg = "No categories were set in the Technology table!"
+            logger.error(msg)
+            raise RuntimeError(msg)
+        else:
+            print(f"Categories and number of technologies per category: {[(c, len(t)) for c, t in self.category_mapping.items()]}")
+
         for cat in self.category_mapping:
             logger.debug('Category %s members: %d', cat, len(self.category_mapping[cat]))
 
@@ -162,7 +169,7 @@ class RandomCapacityVectorManager(VectorManager):
     def group_variable_names(self, tech) -> list[Var]:
         return list(self.category_mapping.keys())
 
-    def random_coefficients(n: int):
+    def random_coefficients(self, n: int):
         return np.random.random(n) - 0.5
     
     def random_input_vector_model(self) -> TemoaModel:
