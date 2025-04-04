@@ -106,7 +106,7 @@ class RandomCapacityVectorManager(VectorManager):
         self.hull: Hull | None = None
 
         # include minimise/maximise basis (sum of category) runs?
-        self.include_min = False # -> These runs can be very unstable due to degenerate solutions
+        self.include_min = True # -> These runs can be very unstable due to degenerate solutions
         self.include_max = True # -> These runs can also be a bit unstable due to flat solution spaces
 
         # Should we save the random vector objectives each run and reuse them?
@@ -120,7 +120,7 @@ class RandomCapacityVectorManager(VectorManager):
 
         # monitor/report the size of the hull for each new point.
         # only works for very small number of categories, scales poorly
-        self.hull_monitor = False
+        self.hull_monitor = True
         self.perf_data = {}
         
 
@@ -475,9 +475,11 @@ class RandomCapacityVectorManager(VectorManager):
         Note:  This hull is a "throw away" and only used for volume calc, but it is pretty quick
         """
         points = self.hull_points[:, np.amax(self.hull_points, axis=0) - np.amin(self.hull_points, axis=0) > 1]
-        pd.DataFrame(points).to_csv('hull_points.csv')
+        pd.DataFrame(points).to_csv(Path(get_OUTPUT_PATH(), 'hull_points.csv'))
         try: self.hull = Hull(points) # bit of a hack... works when there are enough points...
-        except: return
+        except Exception as e:
+            print(e)
+            return
         volume = self.hull.volume
         logger.info(f'Tracking hull at {volume}')
         self.perf_data.update({len(self.hull_points): volume})
