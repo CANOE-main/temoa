@@ -119,7 +119,7 @@ def DemandConstraintErrorCheck(supply, r, p, s, d, dem):
             ' - Does a tech that satisfies this demand need a longer '
             'Lifetime?\n'
         )
-        logger.error(msg)
+        logger.error(msg.format(dem, r, p, s, d))
         raise Exception(msg.format(dem, r, p, s, d))
 
 
@@ -237,8 +237,10 @@ def CheckEfficiencyIndices(M: 'TemoaModel'):
     # TODO:  This could be upgraded to scan for finer resolution
     #        by checking by REGION and PERIOD...  Each region/period is unique.
     c_physical = set(i for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
+    c_physical = c_physical | set(i for r, i, t, v in M.ConstructionInput)
     techs = set(t for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     c_outputs = set(o for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
+    c_outputs = c_outputs | set(o for r, t, v, o in M.EndOfLifeOutput)
 
     symdiff = c_physical.symmetric_difference(M.commodity_physical)
     if symdiff:
@@ -741,6 +743,11 @@ def CreateSparseDicts(M: 'TemoaModel'):
             #     if v + l_loan_life >= p:
             #         M.processLoans[pindex] = True
 
+            if (v < p <= v+l_lifetime) or (v==p and l_lifetime < value(M.PeriodLength[p])):
+                if (r, t, v) not in M.retirementPeriods:
+                    M.retirementPeriods[r, t, v] = set()
+                M.retirementPeriods[r, t, v].add(p)
+
             # if tech is no longer active, don't include it
             if v + l_lifetime <= p:
                 continue
@@ -903,28 +910,44 @@ def CreateSparseDicts(M: 'TemoaModel'):
             if t in M.tech_exchange:
                 M.importRegions[r[r.find('-') + 1 :], p, o].add((r[: r.find('-')], t, v, i))
 
-    for r, i, t, v, o in M.Efficiency.sparse_iterkeys():
-        if t in M.tech_exchange:
-            reg = r.split('-')[0]
-            for r1, i1, t1, v1, o1 in M.Efficiency.sparse_iterkeys():
-                if (r1 == reg) & (o1 == i):
-                    for p in M.time_optimize:
-                        if p >= v and (r1, p, o1) not in M.commodityDStreamProcess:
-                            msg = (
-                                'The {} process in region {} has no downstream process other '
-                                'than a transport ({}) process. This will cause the commodity '
-                                'balance constraint to fail. Add a dummy technology downstream '
-                                'of the {} process to the Efficiency table to avoid this '
-                                'issue.  The dummy technology should have the same region and '
-                                'vintage as the {} process, an efficiency of 100%, with the {} '
-                                'commodity as the input and output.'
-                                'The dummy technology may also need a corresponding row in the '
-                                'ExistingCapacity table with capacity values that equal the {} '
-                                'technology.'
-                            )
-                            f_msg = msg.format(t1, r1, t, t1, t1, o1, t1)
-                            logger.error(f_msg)
-                            raise ValueError(f_msg)
+    # devnote: I think this was only necessary because the commodity balance constraint rpc indices
+    # weren't accounting for imports/exports. I added them to the set below so this should be fixed
+    # for r, i, t, v, o in M.Efficiency.sparse_iterkeys():
+    #     if t in M.tech_exchange:
+    #         reg = r.split('-')[0]
+    #         for r1, i1, t1, v1, o1 in M.Efficiency.sparse_iterkeys():
+    #             if (r1 == reg) & (o1 == i):
+    #                 for p in M.time_optimize:
+    #                     if p >= v and (r1, p, o1) not in M.commodityDStreamProcess:
+    #                         msg = (
+    #                             'The {} process in region {} has no downstream process other '
+    #                             'than a transport ({}) process. This will cause the commodity '
+    #                             'balance constraint to fail. Add a dummy technology downstream '
+    #                             'of the {} process to the Efficiency table to avoid this '
+    #                             'issue.  The dummy technology should have the same region and '
+    #                             'vintage as the {} process, an efficiency of 100%, with the {} '
+    #                             'commodity as the input and output.'
+    #                             'The dummy technology may also need a corresponding row in the '
+    #                             'ExistingCapacity table with capacity values that equal the {} '
+    #                             'technology.'
+    #                         )
+    #                         f_msg = msg.format(t1, r1, t, t1, t1, o1, t1)
+    #                         logger.error(f_msg)
+    #                         raise ValueError(f_msg)
+
+    # Need this here for the commodity balance rpc set
+    for r, i, t, v in M.ConstructionInput:
+        if (r, v, i) not in M.capacityConsumptionTechs:
+            M.capacityConsumptionTechs[r, v, i] = set()
+        M.capacityConsumptionTechs[r, v, i].add(t)
+    for r, t, v, o in M.EndOfLifeOutput:
+        l = value(M.LifetimeProcess[r, t, v])
+        for p in M.time_optimize:
+            # What periods can this process retire in, either naturally or economically?
+            if (v < p <= v+l) or (v==p and l < value(M.PeriodLength[p])):
+                if (r, p, o) not in M.retirementProductionProcesses:
+                    M.retirementProductionProcesses[r, p, o] = set()
+                M.retirementProductionProcesses[r, p, o].add((t, v))
 
     l_unused_techs = M.tech_all - l_used_techs
     if l_unused_techs:
@@ -936,8 +959,8 @@ def CreateSparseDicts(M: 'TemoaModel'):
             SE.write(msg.format(i))
 
     # valid region-period-commodity sets for commodity balance constraints
-    commodityUpstream_rpi = set(M.commodityUStreamProcess.keys())
-    commodityDownstream_rpo = set(M.commodityDStreamProcess.keys())
+    commodityUpstream_rpi = set(M.commodityUStreamProcess.keys() | M.retirementProductionProcesses.keys() | M.importRegions.keys())
+    commodityDownstream_rpo = set(M.commodityDStreamProcess.keys() | M.capacityConsumptionTechs.keys() | M.exportRegions.keys())
     M.commodityBalance_rpc = commodityUpstream_rpi.intersection(commodityDownstream_rpo)
 
     M.activeFlow_rpsditvo = set(

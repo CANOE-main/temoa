@@ -99,11 +99,14 @@ class TemoaModel(AbstractModel):
         M.commodityBalance_rpc = None # Set of valid region-period-commodity indices to balance
         M.commodityDStreamProcess = dict()  # The downstream process of a commodity during a period
         M.commodityUStreamProcess = dict()  # The upstream process of a commodity during a period
+        M.capacityConsumptionTechs = dict()  # New capacity consuming a commodity during a period [r,p,c] -> t
+        M.retirementProductionProcesses = dict()  # Retired capacity producing a commodity during a period [r,p,c] -> t,v
         M.processInputsByOutput = dict()
         M.processOutputsByInput = dict()
         M.processTechs = dict()
         M.processReservePeriods = dict()
         M.processPeriods = dict() # {(r, t, v): set(p)}
+        M.retirementPeriods = dict() # {(r, t, v): set(p)} periods in which a process can economically or naturally retire
         M.processVintages = dict()
         """current available (within lifespan) vintages {(r, p, t) : set(v)}"""
 
@@ -272,6 +275,11 @@ class TemoaModel(AbstractModel):
         #     Any, Any, Any, Any, Any,
         #     within=NonNegativeReals, validate=validate_Efficiency
         # )
+
+        # devnote: need these here or CheckEfficiencyIndices may flag these commodities as unused
+        M.ConstructionInput = Param(M.regions, M.commodity_physical, M.tech_with_capacity, M.vintage_optimize)
+        M.EndOfLifeOutput = Param(M.regions, M.tech_with_capacity, M.vintage_optimize, M.commodity_physical)
+        
         M.Efficiency = Param(
             M.regionalIndices,
             M.commodity_physical,
@@ -525,6 +533,7 @@ class TemoaModel(AbstractModel):
         M.PlanningReserveMargin = Param(M.regions, default=0.2)
         
         M.EmissionEmbodied = Param(M.regions, M.commodity_emissions, M.tech_with_capacity, M.vintage_optimize)
+        M.EmissionEndOfLife = Param(M.regions, M.commodity_emissions, M.tech_with_capacity, M.vintage_all)
 
         M.MyopicBaseyear = Param(default=0)
 
