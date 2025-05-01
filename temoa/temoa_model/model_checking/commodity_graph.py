@@ -71,6 +71,8 @@ def generate_graph(
         layers[c] = 1
     for c in network_data.demand_commodities[region, period]:
         layers[c] = 3
+    for c in network_data.cap_commodities:
+        layers[c] = 4
 
     edge_colors = {}
     edge_weights = {}
@@ -80,6 +82,10 @@ def generate_graph(
     # decisions, so primary stuff goes last!
     all_edges = {
         (tech.ic, tech.name, tech.oc) for tech in network_data.available_techs[region, period]
+    }
+    cap_edges = {
+        (tech.ic, tech.name, tech.oc) for tech in network_data.available_techs[region, period]
+        if tech.name in ('Construction','EndOfLife')
     }
     # troll through the tech_data and label things of low importance
     for edge in all_edges:
@@ -100,6 +106,10 @@ def generate_graph(
         all_edges.add(edge)
     for edge in ((tech.ic, tech.name, tech.oc) for tech in demand_orphans):
         edge_colors[edge] = 'red'
+        edge_weights[edge] = 5
+        all_edges.add(edge)
+    for edge in cap_edges:
+        edge_colors[edge] = 'green'
         edge_weights[edge] = 5
         all_edges.add(edge)
 
@@ -188,8 +198,8 @@ def make_nx_graph(connections, edge_colors, edge_weights, layer_map) -> nx.Multi
     :return: a nx MultiDiGraph
     """
     dg = nx.MultiDiGraph()  # networkx multi(edge) directed graph
-    layer_colors = {1: 'limegreen', 2: 'violet', 3: 'darkorange'}
-    node_size = {1: 50, 2: 15, 3: 30}
+    layer_colors = {1: 'limegreen', 2: 'violet', 3: 'darkorange', 4: 'black'}
+    node_size = {1: 50, 2: 15, 3: 30, 4:20}
     for ic, tech, oc in connections:
         dg.add_node(
             ic,
