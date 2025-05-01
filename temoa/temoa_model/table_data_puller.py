@@ -201,6 +201,29 @@ def poll_flow_results(M: TemoaModel, epsilon=1e-5) -> dict[FI, dict[FlowType, fl
                 res[fi][FlowType.FLEX] = flow
                 res[fi][FlowType.OUT] -= flow
 
+    # construction flows
+    for (r, i, t, v) in M.ConstructionInput.sparse_iterkeys():
+        annual = value(M.ConstructionInput[r, i, t, v]) * value(M.V_NewCapacity[r, t, v]) / value(M.PeriodLength[v])
+        for s in M.time_season[v]:
+            for d in M.time_of_day:
+                fi = FI(r, v, s, d, i, t, v, 'ConstructionInput')
+                flow = annual * value(M.SegFrac[v, s, d])
+                if abs(flow) < epsilon:
+                    continue
+                res[fi][FlowType.IN] = flow
+
+    # end of life flows
+    for (r, t, v, o) in M.EndOfLifeOutput.sparse_iterkeys():
+        for p in M.retirementPeriods[r, t, v]:
+            annual = value(M.EndOfLifeOutput[r, t, v, o]) * value(temoa_rules.get_annual_retirement(M, r, p, t, v))
+            for s in M.time_season[p]:
+                for d in M.time_of_day:
+                    fi = FI(r, p, s, d, 'EndOfLifeOutput', t, v, o)
+                    flow = annual * value(M.SegFrac[p, s, d])
+                    if abs(flow) < epsilon:
+                        continue
+                    res[fi][FlowType.OUT] = flow
+
     return res
 
 
