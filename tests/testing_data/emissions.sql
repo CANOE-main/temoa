@@ -120,6 +120,8 @@ INSERT INTO Commodity VALUES('annual_flex_in','s',NULL);
 INSERT INTO Commodity VALUES('annual_flex_null','d',NULL);
 INSERT INTO Commodity VALUES('embodied_in','s',NULL);
 INSERT INTO Commodity VALUES('embodied_out','d',NULL);
+INSERT INTO Commodity VALUES('eol_in','s',NULL);
+INSERT INTO Commodity VALUES('eol_out','d',NULL);
 CREATE TABLE CommodityType
 (
     label       TEXT
@@ -145,6 +147,7 @@ CREATE TABLE CostEmission
     PRIMARY KEY (region, period, emis_comm)
 );
 INSERT INTO CostEmission VALUES('TestRegion',2000,'emission',0.7,NULL,NULL);
+INSERT INTO CostEmission VALUES('TestRegion',2005,'emission',0.7,NULL,NULL);
 CREATE TABLE CostFixed
 (
     region  TEXT    NOT NULL,
@@ -203,6 +206,8 @@ INSERT INTO Demand VALUES('TestRegion',2000,'curtailment_out',0.3,NULL,NULL);
 INSERT INTO Demand VALUES('TestRegion',2000,'flex_null',0.3,NULL,NULL);
 INSERT INTO Demand VALUES('TestRegion',2000,'annual_flex_null',0.3,NULL,NULL);
 INSERT INTO Demand VALUES('TestRegion',2000,'embodied_out',0.6,NULL,NULL);
+INSERT INTO Demand VALUES('TestRegion',2000,'eol_out',0.6,NULL,NULL);
+INSERT INTO Demand VALUES('TestRegion',2005,'ordinary_out',0.3,NULL,NULL);
 CREATE TABLE DemandSpecificDistribution
 (
     region      TEXT,
@@ -254,6 +259,7 @@ INSERT INTO Efficiency VALUES('TestRegion','flex_out','TechFlexNull',2000,'flex_
 INSERT INTO Efficiency VALUES('TestRegion','annual_flex_out','TechFlexNull',2000,'annual_flex_null',1.0,NULL);
 INSERT INTO Efficiency VALUES('TestRegion','annual_flex_in','TechAnnualFlex',2000,'annual_flex_out',1.0,NULL);
 INSERT INTO Efficiency VALUES('TestRegion','embodied_in','TechEmbodied',2000,'embodied_out',1.0,NULL);
+INSERT INTO Efficiency VALUES('TestRegion','eol_in','TechEndOfLife',2000,'eol_out',1.0,NULL);
 CREATE TABLE EfficiencyVariable
 (
     region      TEXT,
@@ -314,6 +320,21 @@ CREATE TABLE EmissionEmbodied
     PRIMARY KEY (region, emis_comm,  tech, vintage)
 );
 INSERT INTO EmissionEmbodied VALUES('TestRegion','emission','TechEmbodied',2000,0.5,NULL,NULL);
+CREATE TABLE EmissionEndOfLife
+(
+    region      TEXT,
+    emis_comm   TEXT
+        REFERENCES Commodity (name),
+    tech        TEXT
+        REFERENCES Technology (tech),
+    vintage     INTEGER
+        REFERENCES TimePeriod (period),
+    value       REAL,
+    units       TEXT,
+    notes       TEXT,
+    PRIMARY KEY (region, emis_comm,  tech, vintage)
+);
+INSERT INTO EmissionEndOfLife VALUES('TestRegion','emission','TechEndOfLife',2000,0.5,NULL,NULL);
 CREATE TABLE ExistingCapacity
 (
     region   TEXT,
@@ -380,6 +401,7 @@ CREATE TABLE LifetimeTech
     notes    TEXT,
     PRIMARY KEY (region, tech)
 );
+INSERT INTO LifetimeTech VALUES('TestRegion','TechEndOfLife',5,NULL);
 CREATE TABLE LinkedTech
 (
     primary_region TEXT,
@@ -657,6 +679,8 @@ CREATE TABLE TimeSegmentFraction
 );
 INSERT INTO TimeSegmentFraction VALUES(2000,'S1','TOD1',0.5,NULL);
 INSERT INTO TimeSegmentFraction VALUES(2000,'S1','TOD2',0.5,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2005,'S1','TOD1',0.5,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2005,'S1','TOD2',0.5,NULL);
 CREATE TABLE StorageDuration
 (
     region   TEXT,
@@ -815,6 +839,7 @@ CREATE TABLE TimePeriod
 INSERT INTO TimePeriod VALUES(1,1999,'e');
 INSERT INTO TimePeriod VALUES(2,2000,'f');
 INSERT INTO TimePeriod VALUES(3,2005,'f');
+INSERT INTO TimePeriod VALUES(4,2010,'f');
 CREATE TABLE TimeSeason
 (
     season TEXT
@@ -832,6 +857,7 @@ CREATE TABLE PeriodSeasons
     PRIMARY KEY (period, sequence)
 );
 INSERT INTO PeriodSeasons VALUES(2000,1,'S1',NULL);
+INSERT INTO PeriodSeasons VALUES(2005,1,'S1',NULL);
 CREATE TABLE TimePeriodType
 (
     label       TEXT
@@ -1148,6 +1174,7 @@ INSERT INTO Technology VALUES('TechCurtailment','p','energy',NULL,NULL,0,0,0,1,0
 INSERT INTO Technology VALUES('TechFlexNull','p','energy',NULL,NULL,0,0,0,0,0,0,0,NULL);
 INSERT INTO Technology VALUES('TechAnnualFlex','p','energy',NULL,NULL,0,1,0,0,0,1,0,NULL);
 INSERT INTO Technology VALUES('TechEmbodied','p','energy',NULL,NULL,0,0,0,0,0,0,0,NULL);
+INSERT INTO Technology VALUES('TechEndOfLife','p','energy',NULL,NULL,0,0,0,0,0,0,0,NULL);
 CREATE TABLE OutputCost
 (
     scenario TEXT,
