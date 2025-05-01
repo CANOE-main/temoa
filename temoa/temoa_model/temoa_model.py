@@ -278,7 +278,7 @@ class TemoaModel(AbstractModel):
 
         # devnote: need these here or CheckEfficiencyIndices may flag these commodities as unused
         M.ConstructionInput = Param(M.regions, M.commodity_physical, M.tech_with_capacity, M.vintage_optimize)
-        M.EndOfLifeOutput = Param(M.regions, M.tech_with_capacity, M.vintage_optimize, M.commodity_physical)
+        M.EndOfLifeOutput = Param(M.regions, M.tech_with_capacity, M.vintage_all, M.commodity_physical)
         
         M.Efficiency = Param(
             M.regionalIndices,
