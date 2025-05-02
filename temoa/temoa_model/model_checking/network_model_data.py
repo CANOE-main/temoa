@@ -181,7 +181,7 @@ def _build_from_db(
     tech_retire = {t[0] for t in raw}
     raw = cur.execute('SELECT period FROM TimePeriod').fetchall()
     periods = [p[0] for p in raw]
-    period_lengths = {periods[i]: periods[i+1] - periods[i] for i in range(len(periods)-1)}
+    period_length = {periods[i]: periods[i+1] - periods[i] for i in range(len(periods)-1)}
     raw = cur.execute('SELECT Commodity.name FROM Commodity').fetchall()
     res.cap_commodities = set()
     res.exc_commodities = set()
@@ -263,11 +263,11 @@ def _build_from_db(
                     if ic in source_comms:
                         source_dict[r, p].add(ic)
 
-
             # End of life output
             if any((
-                v==p and lifetime<period_lengths[p], # eol the period it is constructed
-                v+lifetime==p, # typical eol
+                p==v and lifetime<period_length[p], # eol the period it is constructed
+                p==v+lifetime, # natural eol at start of this period
+                (p<v+lifetime) and (v+lifetime-p<period_length[p]), # eol mid-period
                 tech in tech_retire and v < p < v+lifetime, # allowed early retirement
             )):
                 try:
@@ -280,7 +280,9 @@ def _build_from_db(
                         techs[r, p].add(Tech(r, tech, 'EndOfLife', v, oc))
                     source_dict[r, p].add(tech)
                     res.cap_commodities.add(tech)
+                    living_techs.add(tech)
                 except:
+                    # EndOfLifeOutput table did not exist TODO remove this eventually
                     pass
 
     # Construction input
@@ -290,7 +292,9 @@ def _build_from_db(
             techs[r, v].add(Tech(r, ic, 'Construction', v, tech))
             demand_dict[r, v].add(tech)
             res.cap_commodities.add(tech)
+            living_techs.add(tech)
     except:
+        # ConstructionInput table did not exist TODO remove this eventually
         pass
 
     res.available_techs = techs
