@@ -233,6 +233,7 @@ class TableWriter:
         """Write the storage level table to the DB"""
 
         # For backwards compatibility, make the output table if it doesn't exist
+        # TODO hopefully this can be removed after a while
         self.con.execute(
             f"""CREATE TABLE IF NOT EXISTS 
             OutputStorageLevel(
@@ -437,12 +438,19 @@ class TableWriter:
     #     flow_data = self.calculate_flows(M)
 
     def check_flow_balance(self, M: TemoaModel) -> bool:
-        """An easy sanity check to ensure that the flow tables are balanced, except for storage"""
+        """
+        An easy sanity check to ensure that the flow tables are balanced, except for storage
+        and construction/end of life flows
+        """
         flows = self.flow_register
         all_good = True
         deltas = defaultdict(float)
         for fi in flows:
             if fi.t in M.tech_storage:
+                continue
+            if fi.i == 'EndOfLifeOutput':
+                continue
+            if fi.o == 'ConstructionInput':
                 continue
 
             # some conveniences for the players...

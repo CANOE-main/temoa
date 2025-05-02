@@ -288,6 +288,7 @@ def CheckEfficiencyVariable(M: 'TemoaModel'):
             M.efficiencyVariables[r, p, i, t, v, o] = False 
             count_rpitvo[r, p, i, t, v, o] = 0
     
+    annual = set()
     # Check for bad values and count up the good ones
     for r, p, s, d, i, t, v, o in M.EfficiencyVariable.sparse_iterkeys():
         
@@ -296,8 +297,19 @@ def CheckEfficiencyVariable(M: 'TemoaModel'):
             logger.error(msg)
             raise ValueError(msg)
         
+        if t in M.tech_annual:
+            annual.add(t)
+        
         # Good value, pull from EfficiencyVariable table
         count_rpitvo[r, p, i, t, v, o] += 1
+
+    for t in annual:
+        msg = (
+            f"Variable efficiencies were provided for the annual technology {t}, which has "
+            "no variable output. This will only be applied to flows on non-annual commodities. "
+            "This is ambiguous behaviour and not recommended."
+        )
+        logger.warning(msg)
 
     # Check if all possible values have been set as variable
     # log a warning if some are missing (allowed but maybe accidental)

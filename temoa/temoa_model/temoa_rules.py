@@ -889,6 +889,13 @@ def CommodityBalance_Constraint(M: 'TemoaModel', r, p, s, d, c):
             M.V_FlowOut[r + '-' + reg, p, s, d, c, S_t, S_v, S_o]
             / get_variable_efficiency(M, r + '-' + reg, p, s, d, c, S_t, S_v, S_o)
             for reg, S_t, S_v, S_o in M.exportRegions[r, p, c]
+            if S_t not in M.tech_annual
+        )
+        consumed += sum(
+            value(M.SegFrac[p, s, d]) * M.V_FlowOutAnnual[reg + '-' + r, p, c, S_t, S_v, S_o]
+            / get_variable_efficiency(M, r + '-' + reg, p, s, d, c, S_t, S_v, S_o)
+            for reg, S_t, S_v, S_o in M.exportRegions[r, p, c]
+            if S_t in M.tech_annual
         )
 
     # import of commodity c from other regions into region r
@@ -896,6 +903,12 @@ def CommodityBalance_Constraint(M: 'TemoaModel', r, p, s, d, c):
         produced += sum(
             M.V_FlowOut[reg + '-' + r, p, s, d, S_i, S_t, S_v, c]
             for reg, S_t, S_v, S_i in M.importRegions[r, p, c]
+            if S_t not in M.tech_annual
+        )
+        produced += sum(
+            value(M.SegFrac[p, s, d]) * M.V_FlowOutAnnual[reg + '-' + r, p, S_i, S_t, S_v, c]
+            for reg, S_t, S_v, S_i in M.importRegions[r, p, c]
+            if S_t in M.tech_annual
         )
 
     CommodityBalanceConstraintErrorCheck(
@@ -1012,6 +1025,13 @@ def AnnualCommodityBalance_Constraint(M: 'TemoaModel', r, p, c):
             for S_s in M.time_season[p]
             for S_d in M.time_of_day
             for S_r, S_t, S_v, S_o in M.exportRegions[r, p, c]
+            if S_t not in M.tech_annual
+        )
+        consumed += sum(
+            M.V_FlowOutAnnual[r + '-' + S_r, p, c, S_t, S_v, S_o]
+            / M.Efficiency[r + '-' + S_r, c, S_t, S_v, S_o]
+            for S_r, S_t, S_v, S_o in M.exportRegions[r, p, c]
+            if S_t in M.tech_annual
         )
 
     # import of commodity c from other regions into region r
@@ -1021,6 +1041,12 @@ def AnnualCommodityBalance_Constraint(M: 'TemoaModel', r, p, c):
             for S_s in M.time_season[p]
             for S_d in M.time_of_day
             for S_r, S_t, S_v, S_i in M.importRegions[r, p, c]
+            if S_t not in M.tech_annual
+        )
+        produced += sum(
+            M.V_FlowOutAnnual[r + '-' + S_r, p, S_i, S_t, S_v, c]
+            for S_r, S_t, S_v, S_i in M.importRegions[r, p, c]
+            if S_t in M.tech_annual
         )
 
     AnnualCommodityBalanceConstraintErrorCheck(
