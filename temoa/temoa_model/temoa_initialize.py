@@ -284,6 +284,10 @@ def CheckEfficiencyVariable(M: 'TemoaModel'):
     count_rpitvo = dict()
     # Pull non-variable efficiency by default
     for r, i, t, v, o in M.Efficiency.sparse_iterkeys():
+        if (r, t, v) not in M.processPeriods:
+            # Probably an existing vintage that retires in p0
+            # Still want it for end of life flows
+            continue
         for p in M.processPeriods[r, t, v]:
             M.efficiencyVariables[r, p, i, t, v, o] = False 
             count_rpitvo[r, p, i, t, v, o] = 0
@@ -715,13 +719,14 @@ def CreateSparseDicts(M: 'TemoaModel'):
                 msg = (
                     '\nWarning: %s specified as ExistingCapacity, but its '
                     'LifetimeProcess parameter does not extend past the beginning '
-                    'of time_future.  (i.e. useless parameter)'
+                    'of time_future.'
                     '\n\tLifetime:     %s'
                     '\n\tFirst period: %s\n'
                 )
                 logger.warning(msg, l_process, l_lifetime, l_first_period)
-                SE.write(msg % (l_process, l_lifetime, l_first_period))
-                continue
+                # Devnote: these are now useful due to end of life outputs
+                #SE.write(msg % (l_process, l_lifetime, l_first_period))
+                #continue
 
         eindex = (r, i, t, v, o)
         if M.Efficiency[eindex] == 0:
