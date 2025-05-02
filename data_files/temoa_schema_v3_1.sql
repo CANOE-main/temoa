@@ -124,7 +124,20 @@ REPLACE INTO CommodityType
 VALUES ('d', 'demand commodity');
 REPLACE INTO CommodityType
 VALUES ('s', 'source commodity');
-
+CREATE TABLE ConstructionInput
+(
+    region      TEXT,
+    input_comm   TEXT
+        REFERENCES Commodity (name),
+    tech        TEXT
+        REFERENCES Technology (tech),
+    vintage     INTEGER
+        REFERENCES TimePeriod (period),
+    value       REAL,
+    units       TEXT,
+    notes       TEXT,
+    PRIMARY KEY (region, input_comm, tech, vintage)
+);
 CREATE TABLE IF NOT EXISTS CostEmission
 (
     region    TEXT
@@ -206,16 +219,19 @@ CREATE TABLE IF NOT EXISTS DemandSpecificDistribution
     PRIMARY KEY (region, period, season, tod, demand_name),
     CHECK (dsd >= 0 AND dsd <= 1)
 );
-CREATE TABLE IF NOT EXISTS LoanRate
+CREATE TABLE EndOfLifeOutput
 (
-    region  TEXT,
-    tech    TEXT
+    region      TEXT,
+    tech        TEXT
         REFERENCES Technology (tech),
-    vintage INTEGER
+    vintage     INTEGER
         REFERENCES TimePeriod (period),
-    rate    REAL,
-    notes   TEXT,
-    PRIMARY KEY (region, tech, vintage)
+    output_comm   TEXT
+        REFERENCES Commodity (name),
+    value       REAL,
+    units       TEXT,
+    notes       TEXT,
+    PRIMARY KEY (region, tech, vintage, output_comm)
 );
 CREATE TABLE IF NOT EXISTS Efficiency
 (
@@ -287,6 +303,20 @@ CREATE TABLE IF NOT EXISTS EmissionEmbodied
     notes       TEXT,
     PRIMARY KEY (region, emis_comm,  tech, vintage)
 );
+CREATE TABLE EmissionEndOfLife
+(
+    region      TEXT,
+    emis_comm   TEXT
+        REFERENCES Commodity (name),
+    tech        TEXT
+        REFERENCES Technology (tech),
+    vintage     INTEGER
+        REFERENCES TimePeriod (period),
+    value       REAL,
+    units       TEXT,
+    notes       TEXT,
+    PRIMARY KEY (region, emis_comm,  tech, vintage)
+);
 CREATE TABLE IF NOT EXISTS ExistingCapacity
 (
     region   TEXT,
@@ -332,6 +362,17 @@ CREATE TABLE IF NOT EXISTS LoanLifetimeTech
     lifetime REAL,
     notes    TEXT,
     PRIMARY KEY (region, tech)
+);
+CREATE TABLE IF NOT EXISTS LoanRate
+(
+    region  TEXT,
+    tech    TEXT
+        REFERENCES Technology (tech),
+    vintage INTEGER
+        REFERENCES TimePeriod (period),
+    rate    REAL,
+    notes   TEXT,
+    PRIMARY KEY (region, tech, vintage)
 );
 CREATE TABLE IF NOT EXISTS LifetimeProcess
 (
