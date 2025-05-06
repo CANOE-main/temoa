@@ -3383,29 +3383,29 @@ def get_annual_retirement(M: 'TemoaModel', r, p, t, v):
     capacity is deployed evenly over the model period.
     """
 
-    # Sum all the capacity that was retired early, if early retirement is allowed
-    l = value(M.LifetimeProcess[r, t, v])
-
-    retired_early = 0
+    # Need to know what already (before period p) retired economically so we don't double count
+    already_retired = 0
     if t in M.tech_retirement:
-        retired_early = sum(
-                M.V_RetiredCapacity[r, S_p, t, v] for S_p in M.time_optimize if v < S_p < p
+        already_retired = sum(
+            M.V_RetiredCapacity[r, S_p, t, v] for S_p in M.time_optimize if v < S_p < p
         )
-        # There can be early retirement in this period UNLESS it naturally retired at the beginning
-        if v+l != p:
-            retired_early += M.V_RetiredCapacity[r, p, t, v]
 
-    # If it naturally retires at the beginning of or during this period, all capacity minus early retirement
+    # If it naturally retires at the beginning of or during this period, all capacity minus already retired
+    l = value(M.LifetimeProcess[r, t, v])
     if v+l == p or value(M.ModelProcessLife[r, p, t, v]) < value(M.PeriodLength[p]):
         if v in M.time_optimize:
-            retired = M.V_NewCapacity[r, t, v] - retired_early
+            retired = M.V_NewCapacity[r, t, v] - already_retired
         elif v in M.time_exist:
-            retired = M.ExistingCapacity[r, t, v] - retired_early
-    # Otherwise just early retirement
+            retired = M.ExistingCapacity[r, t, v] - already_retired
+    # Otherwise if not the vintage period then just early (economic) retirement in this period
+    elif t in M.tech_retirement and v < p:
+        retired = M.V_RetiredCapacity[r, p, t, v]
+    # Neither natural retirement nor early economic retirement possible
     else:
-        retired = retired_early
+        return 0.0
 
-    retired /= value(M.PeriodLength[p]) # Distribute retirement over planning period
+    # Distribute retirement evenly over planning period
+    retired /= value(M.PeriodLength[p])
 
     return retired
 

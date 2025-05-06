@@ -115,12 +115,14 @@ def poll_capacity_results(M: TemoaModel, epsilon=1e-5) -> CapData:
 
     # Retired Capacity
     ret = []
-    for r, p, t, v in M.V_RetiredCapacity:
-        val = value(M.V_RetiredCapacity[r, p, t, v])
-        if abs(val) < epsilon:
-            continue
-        new_retired_cap = (r, p, t, v, val)
-        ret.append(new_retired_cap)
+    for r, t, v in M.retirementPeriods:
+        for p in M.retirementPeriods[r, t, v]:
+            # We want to output period retirement, not annual retirement, so multiply by PeriodLength
+            val = value(M.PeriodLength[p]) * value(temoa_rules.get_annual_retirement(M, r, p, t, v))
+            if abs(val) < epsilon:
+                continue
+            new_retired_cap = (r, p, t, v, val)
+            ret.append(new_retired_cap)
 
     return CapData(built=built, net=net, retired=ret)
 
