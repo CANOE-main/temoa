@@ -124,7 +124,7 @@ REPLACE INTO CommodityType
 VALUES ('d', 'demand commodity');
 REPLACE INTO CommodityType
 VALUES ('s', 'source commodity');
-CREATE TABLE ConstructionInput
+CREATE TABLE IF NOT EXISTS ConstructionInput
 (
     region      TEXT,
     input_comm   TEXT
@@ -219,7 +219,7 @@ CREATE TABLE IF NOT EXISTS DemandSpecificDistribution
     PRIMARY KEY (region, period, season, tod, demand_name),
     CHECK (dsd >= 0 AND dsd <= 1)
 );
-CREATE TABLE EndOfLifeOutput
+CREATE TABLE IF NOT EXISTS EndOfLifeOutput
 (
     region      TEXT,
     tech        TEXT
@@ -303,7 +303,7 @@ CREATE TABLE IF NOT EXISTS EmissionEmbodied
     notes       TEXT,
     PRIMARY KEY (region, emis_comm,  tech, vintage)
 );
-CREATE TABLE EmissionEndOfLife
+CREATE TABLE IF NOT EXISTS EmissionEndOfLife
 (
     region      TEXT,
     emis_comm   TEXT
