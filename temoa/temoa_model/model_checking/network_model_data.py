@@ -278,9 +278,9 @@ def _build_from_db(
                 
                     for r, tech, v, oc in raw:
                         techs[r, p].add(Tech(r, tech, 'EndOfLife', v, oc))
-                    source_dict[r, p].add(tech)
-                    res.cap_commodities.add(tech)
-                    living_techs.add(tech)
+                        source_dict[r, p].add(tech)
+                        res.cap_commodities.add(tech)
+                        living_techs.add(tech)
                 except:
                     # EndOfLifeOutput table did not exist TODO remove this eventually
                     pass

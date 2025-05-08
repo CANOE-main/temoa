@@ -760,7 +760,7 @@ def CreateSparseDicts(M: 'TemoaModel'):
             #     if v + l_loan_life >= p:
             #         M.processLoans[pindex] = True
 
-            if any((
+            if t not in M.tech_uncap and any((
                 p==v and l_lifetime<value(M.PeriodLength[p]), # eol the period it is constructed
                 p==v+l_lifetime, # natural eol at start of this period
                 (p < v+l_lifetime < p+value(M.PeriodLength[p])), # eol mid-period
