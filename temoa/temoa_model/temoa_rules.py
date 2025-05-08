@@ -604,7 +604,7 @@ def PeriodCost_rule(M: 'TemoaModel', p):
     # 6. endoflife - treated as a fixed cost distributed over the retirement period
     endoflife_emissions = sum(
         fixed_or_variable_cost(
-            cap_or_flow=get_annual_retirement(M, r, p, t, v),
+            cap_or_flow=get_annual_retirement(M, r, p, t, v) * value(M.EmissionEndOfLife[r, e, t, v]),
             cost_factor=value(M.CostEmission[r, p, e]),
             cost_years=M.PeriodLength[p], # We assume the embodied emissions are emitted in the same year as the capacity is installed.
             GDR=GDR,

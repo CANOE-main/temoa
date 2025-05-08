@@ -267,7 +267,7 @@ def _build_from_db(
             if any((
                 p==v and lifetime<period_length[p], # eol the period it is constructed
                 p==v+lifetime, # natural eol at start of this period
-                (p<v+lifetime) and (v+lifetime-p<period_length[p]), # eol mid-period
+                (p < v+lifetime < p+period_length[p]), # eol mid-period
                 tech in tech_retire and v < p < v+lifetime, # allowed early retirement
             )):
                 try:

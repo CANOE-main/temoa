@@ -760,7 +760,12 @@ def CreateSparseDicts(M: 'TemoaModel'):
             #     if v + l_loan_life >= p:
             #         M.processLoans[pindex] = True
 
-            if (v < p <= v+l_lifetime) or (v==p and l_lifetime < value(M.PeriodLength[p])):
+            if any((
+                p==v and l_lifetime<value(M.PeriodLength[p]), # eol the period it is constructed
+                p==v+l_lifetime, # natural eol at start of this period
+                (p < v+l_lifetime < p+value(M.PeriodLength[p])), # eol mid-period
+                t in M.tech_retirement and v < p < v+l_lifetime, # allowed early retirement
+            )):
                 if (r, t, v) not in M.retirementPeriods:
                     M.retirementPeriods[r, t, v] = set()
                 M.retirementPeriods[r, t, v].add(p)
@@ -958,13 +963,20 @@ def CreateSparseDicts(M: 'TemoaModel'):
             M.capacityConsumptionTechs[r, v, i] = set()
         M.capacityConsumptionTechs[r, v, i].add(t)
     for r, t, v, o in M.EndOfLifeOutput:
-        l = value(M.LifetimeProcess[r, t, v])
-        for p in M.time_optimize:
+        if (r, t, v) not in M.retirementPeriods:
+            msg = (
+                f'Process {(r, t, v)} in EndOfLifeOutput does not retire within the planning horizon. '
+                'All processes in EndOfLifeOutput must naturally reach end of life at the start of '
+                'or during the planning horizon (p0 <= v+lifetime < pE) or be a retirement tech '
+                '(allowing early retirement).'
+            )
+            logger.error(msg)
+            raise ValueError(msg)
+        for p in M.retirementPeriods[r, t, v]:
             # What periods can this process retire in, either naturally or economically?
-            if (v < p <= v+l) or (v==p and l < value(M.PeriodLength[p])):
-                if (r, p, o) not in M.retirementProductionProcesses:
-                    M.retirementProductionProcesses[r, p, o] = set()
-                M.retirementProductionProcesses[r, p, o].add((t, v))
+            if (r, p, o) not in M.retirementProductionProcesses:
+                M.retirementProductionProcesses[r, p, o] = set()
+            M.retirementProductionProcesses[r, p, o].add((t, v))
 
     l_unused_techs = M.tech_all - l_used_techs
     if l_unused_techs:
