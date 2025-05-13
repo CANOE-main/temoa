@@ -804,6 +804,21 @@ CREATE TABLE IF NOT EXISTS MaxTechOutputSplitAnnual
     notes          TEXT,
     PRIMARY KEY (region, period, tech, output_comm)
 );
+-- CREATE TABLE IF NOT EXISTS TimeNext
+-- (
+--     period       INTEGER
+--         REFERENCES TimePeriod (period),
+--     season       TEXT
+--         REFERENCES TimeSeason (season),
+--     tod          TEXT
+--         REFERENCES TimeOfDay (tod),
+--     season_next  TEXT
+--         REFERENCES TimeSeason (season),
+--     tod_next     TEXT
+--         REFERENCES TimeOfDay (tod),
+--     notes        TEXT,
+--     PRIMARY KEY (period, season, tod)
+-- );
 CREATE TABLE IF NOT EXISTS TimeOfDay
 (
     sequence INTEGER UNIQUE,
@@ -1144,13 +1159,14 @@ CREATE TABLE IF NOT EXISTS Technology
     description  TEXT,
     FOREIGN KEY (flag) REFERENCES TechnologyType (label)
 );
-CREATE TABLE IF NOT EXISTS OutputCost
+CREATE TABLE OutputCost
 (
     scenario TEXT,
-    region   TEXT,
-    period   INTEGER,
-    tech     TEXT,
-    vintage  INTEGER,
+    region   TEXT REFERENCES Region (region),
+    sector   TEXT REFERENCES SectorLabel (sector),
+    period   INTEGER REFERENCES TimePeriod (period),
+    tech     TEXT REFERENCES Technology (tech),
+    vintage  INTEGER REFERENCES TimePeriod (period),
     d_invest REAL,
     d_fixed  REAL,
     d_var    REAL,
