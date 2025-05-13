@@ -118,7 +118,7 @@ def poll_capacity_results(M: TemoaModel, epsilon=1e-5) -> CapData:
     for r, t, v in M.retirementPeriods:
         for p in M.retirementPeriods[r, t, v]:
             # We want to output period retirement, not annual retirement, so multiply by PeriodLength
-            val = value(M.PeriodLength[p]) * value(temoa_rules.get_annual_retirement(M, r, p, t, v))
+            val = value(M.PeriodLength[p]) * value(M.V_AnnualRetirement[r, p, t, v])
             if abs(val) < epsilon:
                 continue
             new_retired_cap = (r, p, t, v, val)
@@ -217,7 +217,7 @@ def poll_flow_results(M: TemoaModel, epsilon=1e-5) -> dict[FI, dict[FlowType, fl
     # end of life flows
     for (r, t, v, o) in M.EndOfLifeOutput.sparse_iterkeys():
         for p in M.retirementPeriods[r, t, v]:
-            annual = value(M.EndOfLifeOutput[r, t, v, o]) * value(temoa_rules.get_annual_retirement(M, r, p, t, v))
+            annual = value(M.EndOfLifeOutput[r, t, v, o]) * value(M.V_AnnualRetirement[r, p, t, v])
             for s in M.time_season[p]:
                 for d in M.time_of_day:
                     fi = FI(r, p, s, d, 'EndOfLifeOutput', t, v, o)
@@ -573,8 +573,8 @@ def poll_emissions(
     eol_flows: dict[EI, float] = defaultdict(float)
     for r, e, t, v in M.EmissionEndOfLife.sparse_iterkeys():
         for p in M.retirementPeriods[r, t, v]:
-            eol_flows[EI(r, p, t, v, e)] += value(temoa_rules.get_annual_retirement(M, r, p, t, v) * M.EmissionEndOfLife[r, e, t, v]) # for eol costs
-            flows[EI(r, p, t, v, e)] += value(temoa_rules.get_annual_retirement(M, r, p, t, v) * M.EmissionEndOfLife[r, e, t, v]) # add eol to process emissions
+            eol_flows[EI(r, p, t, v, e)] += value(M.V_AnnualRetirement[r, p, t, v] * M.EmissionEndOfLife[r, e, t, v]) # for eol costs
+            flows[EI(r, p, t, v, e)] += value(M.V_AnnualRetirement[r, p, t, v] * M.EmissionEndOfLife[r, e, t, v]) # add eol to process emissions
 
     # add embodied costs to process costs
     for ei in eol_flows:

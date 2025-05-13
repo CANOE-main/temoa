@@ -1281,6 +1281,14 @@ def RetiredCapacityVariableIndices(M: 'TemoaModel'):
     )
 
 
+def AnnualRetirementVariableIndices(M: 'TemoaModel'):
+    return set(
+        (r, p, t, v)
+        for r, t, v in M.retirementPeriods.keys()
+        for p in M.retirementPeriods[r, t, v]
+    )
+
+
 def CapacityAvailableVariableIndices(M: 'TemoaModel'):
     return M.activeCapacityAvailable_rpt
 

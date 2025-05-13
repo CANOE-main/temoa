@@ -26700,6 +26700,44 @@
     ]
   ],
   "RetiredCapacityVar_rptv": [],
+  "AnnualRetirementVar_rptv": [
+    [
+      "R2",
+      2030,
+      "T_EV",
+      2020
+    ],
+    [
+      "R1",
+      2030,
+      "T_DSL",
+      2020
+    ],
+    [
+      "R2",
+      2030,
+      "T_DSL",
+      2020
+    ],
+    [
+      "R2",
+      2030,
+      "T_GSL",
+      2020
+    ],
+    [
+      "R1",
+      2030,
+      "T_EV",
+      2020
+    ],
+    [
+      "R1",
+      2030,
+      "T_GSL",
+      2020
+    ]
+  ],
   "CapacityAvailableVar_rpt": [
     [
       "R1-R2",

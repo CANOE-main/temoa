@@ -271,6 +271,41 @@ previous period's total installed capacity (CAPAVL)
     return expr
 
 
+def AnnualRetirement_Constraint(M: 'TemoaModel', r, p, t, v):
+    r"""
+    Get the annualised retirement rate for a process in a given period. 
+    Used to model end of life flows and emissions. Assumes that retirement
+    is evenly distributed over the model period, in the same way we assume
+    capacity is deployed evenly over the model period.
+    """
+
+    # Need to know what already (before period p) retired economically so we don't double count
+    already_retired = 0
+    if t in M.tech_retirement:
+        already_retired = sum(
+            M.V_RetiredCapacity[r, S_p, t, v] for S_p in M.time_optimize if v < S_p < p
+        )
+
+    # If it naturally retires at the beginning of or during this period, all capacity minus already retired
+    l = value(M.LifetimeProcess[r, t, v])
+    if v+l == p or value(M.ModelProcessLife[r, p, t, v]) < value(M.PeriodLength[p]):
+        if v in M.time_optimize:
+            retired = M.V_NewCapacity[r, t, v] - already_retired
+        elif v in M.time_exist:
+            retired = M.ExistingCapacity[r, t, v] - already_retired
+    # Otherwise if not the vintage period then just early (economic) retirement in this period
+    elif t in M.tech_retirement and v < p:
+        retired = M.V_RetiredCapacity[r, p, t, v]
+    # Neither natural retirement nor early economic retirement possible
+    else:
+        retired = 0.0
+
+    # Distribute retirement evenly over planning period
+    retired /= value(M.PeriodLength[p])
+
+    return M.V_AnnualRetirement[r, p, t, v] == retired
+
+
 # ---------------------------------------------------------------
 # Define the Objective Function
 # ---------------------------------------------------------------
@@ -604,7 +639,7 @@ def PeriodCost_rule(M: 'TemoaModel', p):
     # 6. endoflife - treated as a fixed cost distributed over the retirement period
     endoflife_emissions = sum(
         fixed_or_variable_cost(
-            cap_or_flow=get_annual_retirement(M, r, p, t, v) * value(M.EmissionEndOfLife[r, e, t, v]),
+            cap_or_flow=M.V_AnnualRetirement[r, p, t, v] * value(M.EmissionEndOfLife[r, e, t, v]),
             cost_factor=value(M.CostEmission[r, p, e]),
             cost_years=M.PeriodLength[p], # We assume the embodied emissions are emitted in the same year as the capacity is installed.
             GDR=GDR,
@@ -879,7 +914,7 @@ def CommodityBalance_Constraint(M: 'TemoaModel', r, p, s, d, c):
         # Produced by retiring capacity
         # Assume evenly distributed over a year
         produced += value(M.SegFrac[p, s, d]) * sum(
-            value(M.EndOfLifeOutput[r, S_t, S_v, c]) * get_annual_retirement(M, r, p, S_t, S_v)
+            value(M.EndOfLifeOutput[r, S_t, S_v, c]) * M.V_AnnualRetirement[r, p, S_t, S_v]
             for S_t, S_v in M.retirementProductionProcesses[r, p, c]
         )
 
@@ -1013,7 +1048,7 @@ def AnnualCommodityBalance_Constraint(M: 'TemoaModel', r, p, c):
         # Produced by retiring capacity
         # Assume evenly distributed over a year
         produced += sum(
-            value(M.EndOfLifeOutput[r, S_t, S_v, c]) * get_annual_retirement(M, r, p, S_t, S_v)
+            value(M.EndOfLifeOutput[r, S_t, S_v, c]) * M.V_AnnualRetirement[r, p, S_t, S_v]
             for S_t, S_v in M.retirementProductionProcesses[r, p, c]
         )
 
@@ -1766,7 +1801,7 @@ def EmissionLimit_Constraint(M: 'TemoaModel', r, p, e):
     )
 
     retirement_emissions = sum(
-        get_annual_retirement(M, reg, t, v)
+        M.V_AnnualRetirement[reg, p, t, v]
         * value(M.EmissionEndOfLife[reg, e, t, v])
         for reg in regions
         for (S_r, S_e, t, v) in M.EmissionEndOfLife.sparse_iterkeys()
@@ -3373,41 +3408,6 @@ def LinkedEmissionsTech_Constraint(M: 'TemoaModel', r, p, s, d, t, v, e):
     )
 
     return -primary_flow == linked_flow
-
-
-def get_annual_retirement(M: 'TemoaModel', r, p, t, v):
-    r"""
-    Get the annualised retirement rate for a process in a given period. 
-    Used to model end of life flows and emissions. Assumes that retirement
-    is evenly distributed over the model period, in the same way we assume
-    capacity is deployed evenly over the model period.
-    """
-
-    # Need to know what already (before period p) retired economically so we don't double count
-    already_retired = 0
-    if t in M.tech_retirement:
-        already_retired = sum(
-            M.V_RetiredCapacity[r, S_p, t, v] for S_p in M.time_optimize if v < S_p < p
-        )
-
-    # If it naturally retires at the beginning of or during this period, all capacity minus already retired
-    l = value(M.LifetimeProcess[r, t, v])
-    if v+l == p or value(M.ModelProcessLife[r, p, t, v]) < value(M.PeriodLength[p]):
-        if v in M.time_optimize:
-            retired = M.V_NewCapacity[r, t, v] - already_retired
-        elif v in M.time_exist:
-            retired = M.ExistingCapacity[r, t, v] - already_retired
-    # Otherwise if not the vintage period then just early (economic) retirement in this period
-    elif t in M.tech_retirement and v < p:
-        retired = M.V_RetiredCapacity[r, p, t, v]
-    # Neither natural retirement nor early economic retirement possible
-    else:
-        return 0.0
-
-    # Distribute retirement evenly over planning period
-    retired /= value(M.PeriodLength[p])
-
-    return retired
 
 
 # To avoid building big many-indexed parameters when they aren't needed - saves memory

@@ -585,6 +585,9 @@ class TemoaModel(AbstractModel):
         M.RetiredCapacityVar_rptv = Set(dimen=4, initialize=RetiredCapacityVariableIndices)
         M.V_RetiredCapacity = Var(M.RetiredCapacityVar_rptv, domain=NonNegativeReals, initialize=0)
 
+        M.AnnualRetirementVar_rptv = Set(dimen=4, initialize=AnnualRetirementVariableIndices)
+        M.V_AnnualRetirement = Var(M.AnnualRetirementVar_rptv, domain=NonNegativeReals, initialize=0)
+
         M.CapacityAvailableVar_rpt = Set(dimen=3, initialize=CapacityAvailableVariableIndices)
         M.V_CapacityAvailableByPeriodAndTech = Var(
             M.CapacityAvailableVar_rpt, domain=NonNegativeReals, initialize=0
@@ -625,6 +628,9 @@ class TemoaModel(AbstractModel):
 
         M.RetiredCapacityConstraint = Constraint(
             M.RetiredCapacityVar_rptv, rule=RetiredCapacity_Constraint
+        )
+        M.AnnualRetirementConstraint = Constraint(
+            M.AnnualRetirementVar_rptv, rule=AnnualRetirement_Constraint
         )
         M.AdjustedCapacityConstraint = Constraint(
             M.CostFixed_rptv, rule=AdjustedCapacity_Constraint
