@@ -197,6 +197,7 @@ def save_lp(instance: TemoaModel, lp_path: Path) -> None:
         if not Path.is_dir(lp_path):
             Path.mkdir(lp_path)
         filename = lp_path / 'model.lp'
+        logger.info('Saving LP file to %s', str(filename))
         instance.write(filename, format='lp', io_options={'symbolic_solver_labels': True})
 
 
@@ -263,7 +264,9 @@ def solve_instance(
             optimizer.options["Crossover"] = 0 # non basic solution, ie no crossover
             optimizer.options["BarConvTol"] = 1.e-5
             optimizer.options["FeasibilityTol"] = 1.e-6
-            # optimizer.options["BarOrder"] = 0 # if solve times seem unusually long, try 0 or 1
+            #optimizer.options["BarOrder"] = 0 # if solve times seem unusually long, try 0 or 1
+            #optimizer.options["DualReductions"] = 0    # Default is 1. Set to 0 to determine if infeasible or unbounded
+            #optimizer.options["BarHomogeneous"] = 1  # Default is -1. Set to 1 to force it on
 
         elif solver_name == 'appsi_highs':
             pass
@@ -293,7 +296,7 @@ def solve_instance(
             if solver_name == 'appsi_highs':
                 result = optimizer.solve(instance)
             else:
-                result = optimizer.solve(instance, suffixes=solver_suffixes)
+                result = optimizer.solve(instance, suffixes=solver_suffixes, tee=True)
         except RuntimeError as error:
             logger.error('Solver failed to solve and returned an error: %s', error)
             logger.error(

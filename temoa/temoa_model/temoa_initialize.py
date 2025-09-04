@@ -1159,6 +1159,7 @@ def CreateTimeSeasonSequential(M: 'TemoaModel'):
         not M.RampDownHourly,
     )):
         # Don't need it anyway
+        logger.debug("Skipping CreateTimeSeasonSequential since there's no seasonal storage technologies and hourly ramping.")
         return
 
     if not M.TimeSeasonSequential:
