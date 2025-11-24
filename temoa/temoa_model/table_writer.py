@@ -152,6 +152,7 @@ class TableWriter:
         (a) appends data (so scenario needs to be cleared elsewhere
         (b) requires an iteration number to separate results
         (c) only writes to MM required tables (obj, emissions right now)
+        --- 2025 Nov: try writing capacity tables as well
         :param M: solved model
         :param iteration: an iteration index for scenario labeling
         :return:
@@ -159,6 +160,10 @@ class TableWriter:
         if not self.tech_sectors:
             self._set_tech_sectors()
         self.write_objective(M, iteration=iteration)
+        
+        # write capacity tables as well
+        self.write_capacity_tables(M, iteration=iteration)
+
         # analyze the emissions to get the costs and flows
         e_costs, e_flows = poll_emissions(M=M)
         self.emission_register = e_flows

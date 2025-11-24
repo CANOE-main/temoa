@@ -186,6 +186,15 @@ class MorrisSequencer:
             local_optimization=False,
             seed=self.seed,
         )
+
+        # Export mm_samples (a numpy array) to CSV
+        mm_samples_file = self.mm_output_folder / 'mm_samples.csv'
+        with open(mm_samples_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['iteration', *problem['names']])  # header with iteration
+            for idx, row in enumerate(mm_samples, start=1):
+                writer.writerow([idx, *row])
+        
         # 4.  Set up logging for workers
         m = multiprocessing.Manager()
         log_queue = m.Queue()  # Queue()
