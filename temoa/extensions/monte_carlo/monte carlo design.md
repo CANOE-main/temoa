@@ -26,9 +26,9 @@ point to this file and the related database
   - wildcard characters
 - Individual lines can then spawn an arbitrary number of elemental corrections
 - Allow adjustments of 3 types for versatility:
-  - relative change
-  - absolute change
-  - direct substitution of value
+  - relative change (in CSV: `mod='r'`)
+  - absolute change (`mod='a'`)
+  - direct substitution of value (`mod='s'`)
 - Multiple lines can be used to describe an individual run
 - Employ worker functionality similar to MGA.  Within the temoa extensions, there are 2 types of
 parallel processing employed.  First, Method of Morris employs `joblib`'s parallel functionality.
