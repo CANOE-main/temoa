@@ -131,7 +131,11 @@ def generate_graph(
     MAX_CYCLES = 50 # break after this many cycles to avoid hangs
     try:
         cycles = nx.simple_cycles(G=dg)
-        for cycle in cycles[0:MAX_CYCLES]:
+        iter = 0
+        for cycle in cycles:
+            iter += 1
+            if iter > MAX_CYCLES:
+                break
             cycle = list(cycle)
             if len(cycle) < 2:  # a storage item--not reportable
                 continue
