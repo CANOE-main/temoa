@@ -69,11 +69,11 @@ def get_str_padding(obj):
 def CommodityBalanceConstraintErrorCheck(supplied, demanded, r, p, s, d, c):
     # note:  if a pyomo equation simplifies to an int, there are no variables in it, which
     #        is an indicator of a problem. How this might come up I do not know
-    if isinstance(supplied, int) or isinstance(demanded, int):
+    if isinstance(demanded, int) and isinstance(supplied, int):
         expr = str(supplied == demanded)
         msg = (
             "Unable to balance commodity {} in ({}, {}, {}, {}).\n"
-            'No flows on one side of constraint expression:\n'
+            'Nothing produces or consumes it:\n'
             '   {}\n'
             'Possible reasons:\n'
             " - Is there a missing period in set 'time_future'?\n"
@@ -90,11 +90,11 @@ def CommodityBalanceConstraintErrorCheck(supplied, demanded, r, p, s, d, c):
 def AnnualCommodityBalanceConstraintErrorCheck(supplied, demanded, r, p, c):
     # note:  if a pyomo equation simplifies to an int, there are no variables in it, which
     #        is an indicator of a problem. How this might come up I do not know
-    if isinstance(supplied, int) or isinstance(demanded, int):
+    if isinstance(demanded, int) and isinstance(supplied, int):
         expr = str(supplied == demanded)
         msg = (
             "Unable to balance annual commodity {} in ({}, {}).\n"
-            'No flows on one side of constraint expression:\n'
+            'Nothing produces or consumes it:\n'
             '   {}\n'
             'Possible reasons:\n'
             " - Is there a missing period in set 'time_future'?\n"
@@ -266,8 +266,9 @@ def CheckEfficiencyIndices(M: 'TemoaModel'):
     techs = set(t for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     c_outputs = set(o for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     c_outputs = c_outputs | set(o for r, t, v, o in M.EndOfLifeOutput.sparse_iterkeys())
+    c_physical = c_physical | c_outputs
 
-    symdiff = c_physical.symmetric_difference(M.commodity_physical)
+    symdiff = c_physical.symmetric_difference(M.commodity_carrier)
     if symdiff:
         msg = (
             'Unused or unspecified physical carriers.  Either add or remove '
@@ -965,9 +966,17 @@ def CreateSparseDicts(M: 'TemoaModel'):
             SE.write(msg.format(i))
 
     # valid region-period-commodity sets for commodity balance constraints
-    commodityUpstream_rpi = set(M.commodityUStreamProcess | M.retirementProductionProcesses | M.importRegions)
-    commodityDownstream_rpo = set(M.commodityDStreamProcess | M.capacityConsumptionTechs | M.exportRegions)
-    M.commodityBalance_rpc = commodityUpstream_rpi.intersection(commodityDownstream_rpo)
+    commodityUpstream_rpo = set(
+        (r, p, o)
+        for r, p, o in M.commodityUStreamProcess | M.retirementProductionProcesses | M.importRegions
+        if o not in M.commodity_demand | M.commodity_waste
+    )
+    commodityDownstream_rpi = set(
+        (r, p, i)
+        for r, p, i in M.commodityDStreamProcess | M.capacityConsumptionTechs | M.exportRegions
+        if i not in M.commodity_source
+    )
+    M.commodityBalance_rpc = commodityUpstream_rpo.union(commodityDownstream_rpi)
 
     # A dictionary of whether a storage tech is seasonal, just to speed things up
     for t in M.tech_storage:
