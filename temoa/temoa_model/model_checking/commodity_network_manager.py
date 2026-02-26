@@ -79,7 +79,7 @@ class CommodityNetworkManager:
             # check for unsupported demands..
             unsupported_demands = cn.unsupported_demands()
             for commodity in unsupported_demands:
-                logger.error(
+                logger.warning(
                     'Demand %s is not supported back to source commodities in region %s period %d',
                     commodity,
                     cn.region,
