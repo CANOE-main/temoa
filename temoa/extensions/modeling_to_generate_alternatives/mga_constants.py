@@ -29,6 +29,7 @@ import enum
 from enum import Enum
 
 
+# dev note:  few of these are currently developed.... some placeholder ideas...
 @enum.unique
 class MgaAxis(Enum):
     TECH_CAPACITY = 1

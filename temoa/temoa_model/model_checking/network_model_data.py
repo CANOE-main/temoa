@@ -24,6 +24,10 @@ jeff@westernspark.us
 https://westernspark.us
 Created on:  3/10/24
 
+The purpose of this module is to build an Object to hold all of the network data for the entire
+model in a usable format for the commodity_network_manager to use in building the individual
+network.
+
 """
 
 import logging
@@ -51,8 +55,11 @@ class NetworkModelData:
         self.demand_commodities: dict[tuple[str, int | str], set[str]] = kwargs.get(
             'demand_commodities'
         )
-        self.source_commodities: set[str] = kwargs.get('source_commodities')
-        self.all_commodities: set[str] = kwargs.get('all_commodities')
+        self.waste_commodities: set[str] = kwargs.get('waste_commodities')
+        self.capacity_commodities: set[str] = kwargs.get('capacity_commodities')
+        self.exchange_commodities: set[str] = kwargs.get('exchange_commodities')
+        self.source_commodities: dict[tuple[str, int | str], set[str]] = kwargs.get('source_commodities')
+        self.physical_commodities: set[str] = kwargs.get('all_commodities')
         # dict of (region, period): {Tech}
         self._available_techs: dict[tuple[str, int | str], set[Tech]] = kwargs.get(
             'available_techs'
@@ -68,8 +75,11 @@ class NetworkModelData:
         """create a copy of the current"""
         return NetworkModelData(
             demand_commodities=self.demand_commodities.copy(),
+            waste_commodities=self.waste_commodities.copy(),
             source_commodities=self.source_commodities.copy(),
-            all_commodities=self.all_commodities.copy(),
+            capacity_commodities=self.capacity_commodities.copy(),
+            exchange_commodities=self.exchange_commodities.copy(),
+            all_commodities=self.physical_commodities.copy(),
             available_techs=self.available_techs.copy(),
             available_linked_techs=self.available_linked_techs.copy(),
         )
@@ -81,7 +91,7 @@ class NetworkModelData:
     @available_techs.setter
     def available_techs(self, available_techs: dict[tuple[str, int], set[Tech]]) -> None:
         # check for region violations
-        for r, p in available_techs.keys():
+        for r, p in available_techs:
             for tech in available_techs[r, p]:
                 if tech.region != r:
                     raise ValueError(
@@ -109,7 +119,7 @@ class NetworkModelData:
 
     def __str__(self):
         return (
-            f'all commodities: {len(self.all_commodities)}, demand commodities: {len(self.demand_commodities)}, '
+            f'all commodities: {len(self.physical_commodities)}, demand commodities: {len(self.demand_commodities)}, '
             f'source commodities: {len(self.source_commodities)},'
             f'available techs: {len(tuple(chain(*self.available_techs.values())))}, '
             f'linked techs: {len(self.available_linked_techs)}'
@@ -139,10 +149,10 @@ def _build_from_model(M: TemoaModel, myopic_index=None) -> NetworkModelData:
     if myopic_index is not None:
         raise NotImplementedError('cannot build network data from model using a MyopicIndex')
     res = NetworkModelData()
-    res.all_commodities = set(M.commodity_all)
-    res.source_commodities = set(M.commodity_source)
+    res.physical_commodities = set(M.commodity_all)
+    source_com = defaultdict(set)
     dem_com = defaultdict(set)
-    for r, p, d in M.Demand:
+    for r, p, d in M.Demand.sparse_iterkeys():
         dem_com[r, p].add(d)
     res.demand_commodities = dem_com
     techs = defaultdict(set)
@@ -154,7 +164,7 @@ def _build_from_model(M: TemoaModel, myopic_index=None) -> NetworkModelData:
         techs[r, p].add(Tech(r, ic, tech, v, oc))
     res.available_techs = techs
     linked_techs = set()
-    for r, driver, emission, driven in M.LinkedTechs:
+    for r, driver, emission, driven in M.LinkedTechs.sparse_iterkeys():
         linked_techs.add(LinkedTech(r, driver, emission, driven))
     res.available_linked_techs = linked_techs
     logger.debug('built network data: %s', res.__str__())
@@ -169,16 +179,34 @@ def _build_from_db(
     #            re-use some of the hybrid loader code in a clear way.  Not too much overlap, though
     res = NetworkModelData()
     cur = con.cursor()
-    raw = cur.execute('SELECT Commodity.name FROM Commodity').fetchall()
-    res.all_commodities = {t[0] for t in raw}
+    raw = cur.execute('SELECT tech FROM Technology WHERE retire==1').fetchall()
+    tech_retire = {t[0] for t in raw}
+    tech_survival_curve = set()
+    try:
+        raw = cur.execute('SELECT DISTINCT region, tech, vintage FROM SurvivalCurve').fetchall()
+        tech_survival_curve = set(raw)
+    except:
+        # table didn't exist
+        pass
+    raw = cur.execute('SELECT period FROM TimePeriod').fetchall()
+    periods = [p[0] for p in sorted(raw)]
+    period_length = {periods[i]: periods[i+1] - periods[i] for i in range(len(periods)-1)}
+    periods = periods[:-1]
+    raw = cur.execute("SELECT name FROM main.Commodity WHERE flag LIKE '%p%' OR flag = 's' OR flag LIKE '%a%'").fetchall()
+    res.physical_commodities = {c[0] for c in raw}
+    res.capacity_commodities = set()
+    res.exchange_commodities = set()
+    raw = cur.execute("SELECT Commodity.name FROM Commodity WHERE flag LIKE '%w%'").fetchall()
+    waste_comms = {c[0] for c in raw}
+    waste_dict = defaultdict(set)
     raw = cur.execute("SELECT Commodity.name FROM Commodity WHERE flag = 's'").fetchall()
-    res.source_commodities = {t[0] for t in raw}
+    source_comms = {c[0] for c in raw}
+    source_dict = defaultdict(set)
     # use Demand to get the region, period specific demand comms
     raw = cur.execute('SELECT region, period, commodity FROM main.Demand').fetchall()
     demand_dict = defaultdict(set)
     for r, p, d in raw:
         demand_dict[r, p].add(d)
-    res.demand_commodities = demand_dict
     # need lifetime to screen techs... :/
     default_lifetime = TemoaModel.default_lifetime_tech
     if not myopic_index:
@@ -213,10 +241,9 @@ def _build_from_db(
             # f'   WHERE main.MyopicEfficiency.vintage <= {myopic_index.last_demand_year}'
         )
     raw = cur.execute(query).fetchall()
-    periods = cur.execute('SELECT period FROM TimePeriod').fetchall()
     # need to exclude the final year which is a non-demand year and should have no tech data
     # This ensures that the periods in this will match the periods in the hybrid loader.
-    periods = [t[0] for t in sorted(periods)[:-1]]
+    
     # filter further if myopic
     if myopic_index:
         periods = {
@@ -226,17 +253,77 @@ def _build_from_db(
     living_techs = set()  # for screening the linked techs below
     # filter out the dead ones...
     for element in raw:
+        (r, ic, tech, v, oc, lifetime) = element
         for p in periods:
-            (r, ic, tech, v, oc, lifetime) = element
             if v <= p < v + lifetime:
-                techs[r, p].add(Tech(r, ic, tech, v, oc))
-                living_techs.add(tech)
+                if '-' in r:
+                    r1, r2 = r.split('-')
+                    source = f"{ic} ({r1})"
+                    destination = f"{oc} ({r2})"
+                    techs[r2, p].add(Tech(r2, source, tech, v, oc))
+                    techs[r1, p].add(Tech(r1, ic, tech, v, destination))
+                    techs[r, p].add(Tech(r, ic, tech, v, oc))
+                    source_dict[r2, p].add(source)
+                    demand_dict[r1, p].add(destination)
+                    res.physical_commodities.add(source)
+                    res.exchange_commodities.add(source)
+                    res.physical_commodities.add(destination)
+                    res.exchange_commodities.add(destination)
+                else:
+                    techs[r, p].add(Tech(r, ic, tech, v, oc))
+                    living_techs.add(tech)
+                    if ic in source_comms:
+                        source_dict[r, p].add(ic)
+                    if oc in waste_comms:
+                        waste_dict[r, p].add(oc)
+
+            # End of life output
+            if any((
+                p <= v+lifetime < p + period_length[p], # natural eol this period
+                tech in tech_retire and v < p <= v+lifetime - period_length[p], # allowed early retirement
+                tech in tech_survival_curve and v <= p <= v+lifetime
+            )):
+                try:
+                    raw_eol = cur.execute(
+                        'SELECT region, tech, vintage, output_comm FROM EndOfLifeOutput '
+                        f' WHERE region == "{r}" AND tech == "{tech}" AND vintage == {v}'
+                    ).fetchall()
+                    
+                    for _r, _tech, _v, _oc in raw_eol:
+                        techs[_r, p].add(Tech(_r, _tech, 'EndOfLife', _v, _oc))
+                        source_dict[_r, p].add(_tech)
+                        res.capacity_commodities.add(_tech)
+                        living_techs.add(_tech)
+                        if _oc in waste_comms:
+                            waste_dict[_r, p].add(_oc)
+                except:
+                    # EndOfLifeOutput table did not exist TODO remove this eventually
+                    pass
+
+    # Construction input
+    try:
+        raw = cur.execute('SELECT region, input_comm, tech, vintage FROM ConstructionInput').fetchall()
+        for r, ic, tech, v in raw:
+            techs[r, v].add(Tech(r, ic, 'Construction', v, tech))
+            demand_dict[r, v].add(tech)
+            res.capacity_commodities.add(tech)
+            living_techs.add(tech)
+    except:
+        # ConstructionInput table did not exist TODO remove this eventually
+        pass
+
     res.available_techs = techs
+    res.demand_commodities = demand_dict
+    res.source_commodities = source_dict
+    res.waste_commodities = waste_dict
 
     # pick up the linked techs...
-    raw = cur.execute(
-        'SELECT primary_region, primary_tech, emis_comm, driven_tech FROM main.LinkedTech'
-    ).fetchall()
+    try:
+        raw = cur.execute(
+            'SELECT primary_region, primary_tech, emis_comm, driven_tech FROM main.LinkedTech'
+        ).fetchall()
+    except:
+        raw = []
     res.available_linked_techs = {
         LinkedTech(region=r, driver=driver, emission=emiss, driven=driven)
         for (r, driver, emiss, driven) in raw

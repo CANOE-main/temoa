@@ -78,11 +78,14 @@ class CommodityNetwork:
 
         self.orig_connex: set[tuple] = set()
 
+        # devnote: changing this from error to info as a power sector model might have
+        # transmission-only nodes (exchange techs only, no demands)
         if not self.model_data.demand_commodities[self.region, self.period]:
-            raise ValueError(
-                f'No demand commodities discovered in region {self.region} period {self.period}.  Check '
-                f'Demand table data'
+            msg = (
+                f'No demand commodities discovered in region {self.region} period {self.period}. Ignore this '
+                'if this was intentional.'
             )
+            logger.info(msg)
         # dev note:  This code was originally designed/tested to run on tuples of (ic, tech_name, oc)
         #            since the implementation of Tech named tuple, we could switch over to that soon,
         #            but it will be work to re-work the tests.  The networks are smaller this way
@@ -97,13 +100,6 @@ class CommodityNetwork:
 
         # make synthetic connection between linked techs
         self.prescreen_linked_tech()
-
-        # TODO:  perhaps sockets later to account for inter-regional links, for now,
-        #  we will just look at internal connex
-        # # set of exchange techs FROM this region that supply commodity through link
-        # # {tech: set(output commodities)}
-        # self.output_sockets: dict[str, set[str]] = dict()
-        # self.input_sockets: ...
 
     def remove_tech_by_name(self, tech_name: str) -> None:
         """
@@ -221,8 +217,8 @@ class CommodityNetwork:
             # dev note:  send a copy of connections...
             # it is consumed by the function.  (easier than managing it in the recursion)
             discovered_sources, demand_side_connections = _visited_dfs(
-                self.model_data.demand_commodities[self.region, self.period],
-                self.model_data.source_commodities,
+                self.model_data.demand_commodities[self.region, self.period] | self.model_data.waste_commodities[self.region, self.period],
+                self.model_data.source_commodities[self.region, self.period],
                 self.connections.copy(),
             )
             self.good_connections = _mark_good_connections(
@@ -279,26 +275,32 @@ class CommodityNetwork:
 
         if self.other_orphans:
             logger.info(
-                'Source tracing revealed %d orphaned processes in region %s, period %d.  '
-                'Enable DEBUG level logging with "-d" to have them logged in this module',
+                'Source tracing revealed %d "other" (non-demand) orphaned processes in region %s, period %d.',
                 len(self.other_orphans),
                 self.region,
                 self.period,
             )
-        for orphan in sorted(self.other_orphans, key=lambda x: x[1]):
-            logger.debug(
-                'Discovered orphaned process: ' '   %s in region %s, period %d',
-                orphan,
-                self.region,
-                self.period,
-            )
-        for orphan in sorted(self.demand_orphans, key=lambda x: x[1]):
+            for orphan in sorted(self.other_orphans, key=lambda x: x[1]):
+                logger.info(
+                    'Discovered orphaned process:   %s in region %s, period %d',
+                    orphan,
+                    self.region,
+                    self.period,
+                )
+        if self.demand_orphans:
             logger.info(
-                'Orphan process on demand side may cause erroneous results: %s in region %s, period %d',
-                orphan,
+                'Source tracing revealed %d demand-side orphaned processes in region %s, period %d.',
+                len(self.demand_orphans),
                 self.region,
                 self.period,
             )
+            for orphan in sorted(self.demand_orphans, key=lambda x: x[1]):
+                logger.info(
+                    'Discovered orphaned process:   %s in region %s, period %d',
+                    orphan,
+                    self.region,
+                    self.period,
+                )
 
     def unsupported_demands(self) -> set[str]:
         """

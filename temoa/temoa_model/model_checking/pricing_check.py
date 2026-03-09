@@ -43,6 +43,7 @@ received this license file.  If not, see <http://www.gnu.org/licenses/>.
 from collections import defaultdict
 from logging import getLogger
 from typing import TYPE_CHECKING
+from pyomo.environ import value
 
 if TYPE_CHECKING:
     from temoa.temoa_model.temoa_model import TemoaModel
@@ -50,8 +51,14 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 
-def price_checker(M: 'TemoaModel'):
+def price_checker(M: 'TemoaModel') -> bool:
+    """
+    Check the cost data for common errors
+    :param M:
+    :return: True if "clean" (no warnings), else False
+    """
     logger.info('Started price checking model: %s', M.name)
+    warnings = False  # flag
     # some sets for x-checking
     registered_inv_costs = {
         (region, tech, vintage) for (region, tech, vintage) in M.CostInvest.sparse_iterkeys()
@@ -71,11 +78,11 @@ def price_checker(M: 'TemoaModel'):
     # var costs for the period = vintage year
     base_year_variable_cost_rtv = set()
 
-    for r, p, t, v in M.CostFixed:
+    for r, p, t, v in M.CostFixed.sparse_iterkeys():
         fixed_costs[r, t, v].add(p)
         if p == v:
             base_year_fixed_cost_rtv.add((r, t, v))
-    for r, p, t, v in M.CostVariable:
+    for r, p, t, v in M.CostVariable.sparse_iterkeys():
         var_costs[r, t, v].add(p)
         if p == v:
             base_year_variable_cost_rtv.add((r, t, v))
@@ -111,10 +118,11 @@ def price_checker(M: 'TemoaModel'):
 
         if not any((has_fc, has_ic)):
             logger.warning(
-                f'Check 1a (detail): tech {tech} of vintage {vintage} in region {region} does not '
+                f'Check 1a (detail): tech with capacity {tech} of vintage {vintage} in region {region} does not '
                 f'have a Fixed Cost or Investment Cost component'
             )
             techs_without_fc_or_ic.add(tech)
+            warnings = True
 
     # test 1b:  find items that have inconsistent FC/IC across regions & vintages in the base
     #           (vintage) year only
@@ -145,6 +153,7 @@ def price_checker(M: 'TemoaModel'):
                     err += f'       ({r}, {v}): {M.CostFixed[r, v, tt, v]}\n'
             if err:
                 logger.warning(err)
+                warnings = True
 
     # inconsistent IC
     missing_ic = efficiency_rtv - registered_inv_costs  # set of {r, t, v} with no FC entry anywhere
@@ -170,6 +179,7 @@ def price_checker(M: 'TemoaModel'):
                     err += f'       ({r}, {v}): {M.CostInvest[r, tt, v]}\n'
             if err:
                 logger.warning(err)
+                warnings = True
 
     # Check 2:  inconsistent fixed/var costs.  Only check for techs that have ANY
     #           fixed cost that do not have ALL fixed costs that match ALL variable
@@ -178,7 +188,7 @@ def price_checker(M: 'TemoaModel'):
     #           Note this checks all periods in lifetime, not just base year as previous check did.
     logger.debug('  Starting price check #2')
     for region, tech, vintage in sorted_efficiency_rtv:
-        # take the differenece in the sets of periods...
+        # take the difference in the sets of periods...
         missing_fixed_costs = (
             var_costs[region, tech, vintage] - fixed_costs[region, tech, vintage]
             if fixed_costs[region, tech, vintage]
@@ -190,6 +200,7 @@ def price_checker(M: 'TemoaModel'):
                 'the periods listed and at least 1 fixed cost, but not fixed & var in all periods: %s',
                 missing_fixed_costs,
             )
+            warnings = True
 
         missing_var_costs = (
             fixed_costs[region, tech, vintage] - var_costs[region, tech, vintage]
@@ -202,6 +213,7 @@ def price_checker(M: 'TemoaModel'):
                 'periods listed, but no variable costs in the same periods: %s',
                 missing_var_costs,
             )
+            warnings = True
 
     # Check 3:  costs that fall short of tech lifetime.  Only check costs that
     #           have ANY valid entry in the period, ones with NO entry in the
@@ -211,11 +223,13 @@ def price_checker(M: 'TemoaModel'):
     logger.debug('  Starting price check #3')
     for region, tech, vintage in sorted_efficiency_rtv:
         # skip resources
-        if tech in M.tech_resource:
-            continue
+        # devnote: this feels like an OEO specific use case and not generally applicable.
+        # also, the tech_resource set isn't used ANYWHERE else
+        # if tech in M.tech_resource:
+        #     continue
 
         # get the lifetime of the tech, or default
-        lifetime = M.LifetimeProcess[region, tech, vintage]
+        lifetime = value(M.LifetimeProcess[region, tech, vintage])
         # get all applicable future periods that should be priced for this item
         expected_periods = {p for p in M.time_optimize if vintage <= p < vintage + lifetime}
         missing_fixed_costs = (
@@ -239,6 +253,7 @@ def price_checker(M: 'TemoaModel'):
                 sorted(missing_fixed_costs),
                 vintage + lifetime,
             )
+            warnings = True
         if missing_var_costs:
             logger.warning(
                 'check 3: Technology %s of vintage %s in region %s variable costs are'
@@ -249,8 +264,12 @@ def price_checker(M: 'TemoaModel'):
                 sorted(missing_var_costs),
                 vintage + lifetime,
             )
+            warnings = True
+    # continue by checking the uncap techs...
+    warnings &= check_tech_uncap(M)
 
     logger.info('Finished Price Checking Build Action')
+    return not warnings
 
 
 def check_tech_uncap(M: 'TemoaModel') -> bool:
@@ -258,20 +277,21 @@ def check_tech_uncap(M: 'TemoaModel') -> bool:
     Check that the tech_uncap set members...
     1.  do not have fixed or invest costs
     2.  Either have no Var cost, or a Var cost in every year of their lifespan (similar to check #3 above)
-    3.  Are not in the MaxCapacity/MinCapacity parameters
-    4.  future:  screen the group capacity params
+    3.  Are not in the LimitCapacity parameters
+
     :param M:
-    :return:
+    :return: True if "clean" (no warnings), else False
     """
     if len(M.tech_uncap) == 0:
         return True
+    logger.debug('starting price check #4:  uncapacitated techs')
     efficiency_rtv = {
         (region, tech, vintage)
         for (region, _, tech, vintage, __) in M.Efficiency.sparse_iterkeys()
         if tech in M.tech_uncap
     }
 
-    fixed_cost_periods = {(r, t, v): p for r, p, t, v in M.CostFixed}
+    fixed_cost_periods = {(r, t, v): p for r, p, t, v in M.CostFixed.sparse_iterkeys()}
     rtv_with_fixed_cost = efficiency_rtv & set(fixed_cost_periods.keys())
     if rtv_with_fixed_cost:
         logger.error(
@@ -280,7 +300,7 @@ def check_tech_uncap(M: 'TemoaModel') -> bool:
         for rtv in rtv_with_fixed_cost:
             logger.error('%s: %s', rtv, fixed_cost_periods[rtv])
 
-    rtv_with_invest_cost = efficiency_rtv & set(M.CostInvest.keys())
+    rtv_with_invest_cost = efficiency_rtv & set(M.CostInvest.sparse_iterkeys())
     if rtv_with_invest_cost:
         logger.error(
             'The following technologies are labeled as unlimited capacity, but have an INVEST cost'
@@ -294,15 +314,16 @@ def check_tech_uncap(M: 'TemoaModel') -> bool:
         if (r, t, v) in efficiency_rtv:
             var_cost_periods[(r, t, v)].add(p)
     # use it to check for all/none var costs in viable periods
-    all_periods = M.time_future
+    all_periods = M.time_optimize
     bad_var_costs = False
     for r, t, v in var_cost_periods:
         lifetime = M.LifetimeProcess[r, t, v]
         expected_periods = {p for p in all_periods if v <= p < v + lifetime}
         missing_periods = expected_periods - var_cost_periods[r, t, v]
         if missing_periods:
-            logger.error(
-                'Unlimited capacity tech has some Variable costs, but is missing cost in periods: %s',
+            logger.warning(
+                'Unlimited capacity tech %s has some Variable costs, but is missing cost in periods: %s',
+                t,
                 missing_periods,
             )
             bad_var_costs = True
@@ -317,13 +338,10 @@ def check_tech_uncap(M: 'TemoaModel') -> bool:
                 extra_periods,
             )
 
-    # screen the basic Capacity regulating parameters
-    # TODO:  future development to refine this to look for membership in tech groups that have limits
-
-    capacity_params = (M.MaxCapacity, M.MinCapacity, M.ExistingCapacity)
+    capacity_params = (M.ExistingCapacity,)
     bad_cap_entries = False
     for param in capacity_params:
-        bad_entries = {(r, t, v) for r, t, v in param.keys() if t in M.tech_uncap}
+        bad_entries = {(r, t, v) for r, t, v in param.sparse_iterkeys() if t in M.tech_uncap}
         if bad_entries:
             for entry in bad_entries:
                 logger.error(

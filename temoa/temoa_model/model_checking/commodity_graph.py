@@ -65,12 +65,18 @@ def generate_graph(
     :return:
     """
     layers = {}
-    for c in network_data.all_commodities:
+    for c in network_data.waste_commodities[region, period]:
+        layers[c] = 6
+    for c in network_data.physical_commodities:
         layers[c] = 2  # physical
-    for c in network_data.source_commodities:
+    for c in network_data.source_commodities[region, period]:
         layers[c] = 1
     for c in network_data.demand_commodities[region, period]:
         layers[c] = 3
+    for c in network_data.capacity_commodities:
+        layers[c] = 4
+    for c in network_data.exchange_commodities:
+        layers[c] = 5
 
     edge_colors = {}
     edge_weights = {}
@@ -80,6 +86,14 @@ def generate_graph(
     # decisions, so primary stuff goes last!
     all_edges = {
         (tech.ic, tech.name, tech.oc) for tech in network_data.available_techs[region, period]
+    }
+    cap_edges = {
+        (tech.ic, tech.name, tech.oc) for tech in network_data.available_techs[region, period]
+        if tech.name in ('Construction','EndOfLife')
+    }
+    exc_edges = {
+        (tech.ic, tech.name, tech.oc) for tech in network_data.available_techs[region, period]
+        if tech.ic in network_data.exchange_commodities or tech.oc in network_data.exchange_commodities
     }
     # troll through the tech_data and label things of low importance
     for edge in all_edges:
@@ -102,28 +116,48 @@ def generate_graph(
         edge_colors[edge] = 'red'
         edge_weights[edge] = 5
         all_edges.add(edge)
+    for edge in cap_edges:
+        edge_colors[edge] = 'darkgreen'
+        edge_weights[edge] = 2
+        all_edges.add(edge)
+    for edge in exc_edges:
+        edge_colors[edge] = 'darkblue'
+        edge_weights[edge] = 2
+        all_edges.add(edge)
 
     dg = make_nx_graph(all_edges, edge_colors, edge_weights, layers)
 
     # loop finder...
-    # TODO:  This segment of code might fit better in the network manager?
     try:
         cycles = nx.simple_cycles(G=dg)
         for cycle in cycles:
             cycle = list(cycle)
             if len(cycle) < 2:  # a storage item--not reportable
                 continue
-            logger.warning(
-                'Found cycle in region %s, period %d.  No action needed if this is correct:',
+            res = ''
+            first = cycle[0]
+            last_node = first
+            try:
+                for node in cycle:
+                    if node.split(' (')[0] == last_node.split(' (')[0]:
+                        # This is just an exchange tech loop. Ignore.
+                        # These are labelled in the graph as {base_tech} ({other region})
+                        # so we split on ' (' to compare the base techs
+                        raise ValueError("Just an exchange tech")
+                    res += f'{node} --> '
+                    last_node = node
+            except ValueError:
+                # This is just a trick to continue the outer loop instead of the inner loop
+                # this cycle wasn't really a cycle so just continue
+                continue
+            res += first
+            logger.info(
+                'Found cycle in region %s, period %d. No action needed if this is correct: %s',
                 region,
                 period,
+                res,
             )
-            res = '  '
-            first = cycle[0]
-            for node in cycle:
-                res += f'{node} --> '
-            res += first
-            logger.info(res)
+        
     except nx.NetworkXError as e:
         logger.warning('NetworkX exception encountered: %s.  Loop evaluation NOT performed.', e)
     if config.plot_commodity_network:
@@ -189,8 +223,8 @@ def make_nx_graph(connections, edge_colors, edge_weights, layer_map) -> nx.Multi
     :return: a nx MultiDiGraph
     """
     dg = nx.MultiDiGraph()  # networkx multi(edge) directed graph
-    layer_colors = {1: 'limegreen', 2: 'violet', 3: 'darkorange'}
-    node_size = {1: 50, 2: 15, 3: 30}
+    layer_colors = {1: 'limegreen', 2: 'violet', 3: 'darkorange', 4: 'darkgreen', 5: 'darkblue', 6: 'darkred'}
+    node_size = {1: 50, 2: 15, 3: 30, 4:20, 5:20, 6:30}
     for ic, tech, oc in connections:
         dg.add_node(
             ic,
@@ -216,17 +250,3 @@ def make_nx_graph(connections, edge_colors, edge_weights, layer_map) -> nx.Multi
             size=edge_weights.get((ic, tech, oc), 1),
         )
     return dg
-
-
-# quick test...  Not straight-forward on how to include this in unit tests...
-if __name__ == '__main__':
-    connex = [('ethos', 'tech_1', 2), (2, 'tech_2', 3)]
-    layers = {'ethos': 1, 2: 2, 3: 3}
-    _graph_connections(
-        connex,
-        layers,
-        edge_colors={},
-        edge_weights={},
-        file_label='test_network_graph',
-        output_path=Path('.'),
-    )

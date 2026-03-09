@@ -63,7 +63,8 @@ def solve_pf(p_model, p_data):
         # obj_name, obj_value = objs[0], value(objs[1]())
         # return obj_value
 
-    import sys, os
+    import sys
+    import os
     from collections import deque, defaultdict
     from pyomo.pysp.util.scenariomodels import scenario_tree_model
 

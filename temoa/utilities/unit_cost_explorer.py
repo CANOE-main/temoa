@@ -37,8 +37,8 @@ M.LoanLifetimeProcess_rtv.construct(data=rtv)
 M.Loan_rtv.construct(data=rtv)
 M.LoanRate_rtv.construct(data=rtv)
 M.LifetimeProcess_rtv.construct(data=rtv)
-M.RegionalIndices.construct(data=['A'])
-M.MyopicBaseyear.construct(data={None: 0})
+M.regionalIndices.construct(data=['A'])
+M.MyopicDiscountingYear.construct(data={None: 0})
 M.ModelProcessLife_rptv.construct(data=rptv)
 
 
@@ -90,7 +90,7 @@ print(f'price_per_kwh: ${price_per_kwh: 0.2f}\n')
 print('building storage level constraint...')
 
 # More SETS
-M.time_season.construct(data=['winter', 'summer'])
+M.TimeSeason.construct(data=['winter', 'summer'])
 tod_slices = 2
 M.time_of_day.construct(data=range(1, tod_slices + 1))
 M.tech_storage.construct(data=['battery'])
@@ -111,7 +111,7 @@ M.CapacityToActivity.construct(data={('A', 'battery'): 31.536})
 M.StorageDuration.construct(data={('A', 'battery'): 4})
 seasonal_fractions = {'winter': 0.4, 'summer': 0.6}
 M.SegFrac.construct(
-    data={(s, d): seasonal_fractions[s] / tod_slices for d in M.time_of_day for s in M.time_season}
+    data={(s, d): seasonal_fractions[s] / tod_slices for d in M.time_of_day for s in M.TimeSeason}
 )
 # QA the total
 print(f'quality check.  Total of all SegFrac: {sum(M.SegFrac.values()):0.3f}')
@@ -125,7 +125,7 @@ upper_limit = StorageEnergyUpperBound_Constraint(M, 'A', 2020, 'winter', 1, 'bat
 print('The storage level constraint for the single period in the "super day":\n', upper_limit)
 
 # cross-check the multiplier...
-mulitplier = storage_dur * M.SegFracPerSeason['winter'] * 365 * c2a * c
+mulitplier = storage_dur * M.SegFracPerSeason[2020, 'winter'] * M.DaysPerPeriod * c2a * c
 print(f'The multiplier for the storage should be: {mulitplier}')
 
 M.StorageEnergyUpperBoundConstraint.construct()

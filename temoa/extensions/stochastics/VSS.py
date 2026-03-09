@@ -109,7 +109,8 @@ def my_ef_writer(scenario_tree):
 def solve_ef(ef_options):
     # This function solves a stochastic optimization problem via extensive form
     # This function was imported from the EVPI script
-    import os, sys
+    import os
+    import sys
 
     sif = ScenarioTreeInstanceFactory(
         ef_options.model_directory, ef_options.instance_directory, ef_options.verbose
@@ -134,7 +135,8 @@ def solve_ef_fix(ef_options, avg_instance):
     # where first stage decision variables are fixed at the optimal values from
     # the deterministic model called here avg_instance
 
-    import os, sys
+    import os
+    import sys
 
     sif = ScenarioTreeInstanceFactory(
         ef_options.model_directory, ef_options.instance_directory, ef_options.verbose
@@ -195,7 +197,8 @@ def solve_dm(p_model, p_data, opt_solver):
         # Assuming there is only one objective function
         return obj_values[0]
 
-    import sys, os
+    import sys
+    import os
 
     (head, tail) = os.path.split(p_model)
     sys.path.insert(0, head)

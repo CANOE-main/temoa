@@ -48,10 +48,10 @@ parser.add_argument(
 )
 parser.add_argument(
     '--schema',
-    help='Path to schema file (default=../../data_files/temoa_schema_v3.sql)',
+    help='Path to schema file (default=data_files/temoa_schema_v3.sql)',
     required=False,
     dest='schema',
-    default='../../data_files/temoa_schema_v3.sql',
+    default='data_files/temoa_schema_v3.sql',
 )
 options = parser.parse_args()
 legacy_db: Path = Path(options.source_db)
@@ -150,8 +150,13 @@ for name_pair in direct_transfer_tables:
     old_name, new_name = name_pair
     if old_name == '':
         old_name = new_name
+
+    new_columns = [c[1] for c in con_new.execute(f'PRAGMA table_info({new_name});').fetchall()]
+    old_columns = [c[1] for c in con_old.execute(f'PRAGMA table_info({old_name});').fetchall()]
+    cols = str(old_columns[0:len(new_columns)])[1:-1].replace("'","")
+    
     try:
-        data = con_old.execute(f'SELECT * FROM {old_name}').fetchall()
+        data = con_old.execute(f'SELECT {cols} FROM {old_name}').fetchall()
     except sqlite3.OperationalError:
         print('TABLE NOT FOUND: ' + old_name)
         continue
@@ -173,8 +178,13 @@ for name_pair in units_added_tables:
     old_name, new_name = name_pair
     if old_name == '':
         old_name = new_name
+
+    new_columns = [c[1] for c in con_new.execute(f'PRAGMA table_info({new_name});').fetchall()]
+    old_columns = [c[1] for c in con_old.execute(f'PRAGMA table_info({old_name});').fetchall()]
+    cols = str(old_columns[0:len(new_columns)])[1:-1].replace("'","")
+    
     try:
-        data = con_old.execute(f'SELECT * FROM {old_name}').fetchall()
+        data = con_old.execute(f'SELECT {cols} FROM {old_name}').fetchall()
     except sqlite3.OperationalError:
         print('table not found: ' + old_name)
         continue
@@ -192,13 +202,18 @@ for name_pair in sequence_added_tables:
     old_name, new_name = name_pair
     if old_name == '':
         old_name = new_name
+        
+    new_columns = [c[1] for c in con_new.execute(f'PRAGMA table_info({new_name});').fetchall()]
+    old_columns = [c[1] for c in con_old.execute(f'PRAGMA table_info({old_name});').fetchall()]
+    cols = str(old_columns[0:len(new_columns)-1])[1:-1].replace("'","")
+    
     try:
-        data = con_old.execute(f'SELECT * FROM {old_name}').fetchall()
+        data = con_old.execute(f'SELECT {cols} FROM {old_name}').fetchall()
     except sqlite3.OperationalError:
         print(f'mandatory table: {old_name} not found.  Operation Failed')
         sys.exit(-1)
     count = 1
-    num_placeholders = len(data[0])
+    num_placeholders = len(new_columns)-1
     for row in data:
         placeholders = ','.join(['?' for _ in range(num_placeholders)])
         query = f'INSERT INTO {new_name} VALUES ({count}, {placeholders})'
@@ -219,7 +234,7 @@ skip_rps = False
 try:
     entries = con_old.execute('SELECT * FROM tech_rps').fetchall()
 except sqlite3.OperationalError:
-    print(f'source does not appear to include RPS techs...skipping')
+    print('source does not appear to include RPS techs...skipping')
     skip_rps = True
 if not skip_rps:
     for region, tech, notes in entries:
@@ -289,7 +304,7 @@ try:
         )
         cur.execute('INSERT OR REPLACE INTO TechGroupMember VALUES (?, ?)', (new_name, tech))
 except sqlite3.OperationalError:
-    print(f'souce does not appear to employ tech_groups...skipping.')
+    print('souce does not appear to employ tech_groups...skipping.')
     skip_tech_groups = True
 if not skip_tech_groups:
     # ------- FIX TABLES THAT USED TO USE tech_groups -----------

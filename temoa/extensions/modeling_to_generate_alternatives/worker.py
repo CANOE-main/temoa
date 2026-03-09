@@ -27,24 +27,17 @@ Created on:  5/5/24
 Class to contain Workers that execute solves in separate processes
 
 """
+import logging.handlers
 from datetime import datetime
+from logging import getLogger
 from multiprocessing import Process, Queue
+from pathlib import Path
 
 from pyomo.opt import SolverFactory, SolverResults, check_optimal_termination
 
 from temoa.temoa_model.temoa_model import TemoaModel
 
-
-# logger = getLogger(__name__)
-
-
-# def worker_configurer(log_root_name, log_queue, log_level):
-#     logger = logging.getLogger('.'.join((log_root_name, 'worker')))
-#     h = handlers.QueueHandler(log_queue)
-#     logger.addHandler(h)
-#     logger.setLevel(log_level)
-#     print(logger.name)
-#     return logger
+verbose = False  # for T/S or monitoring...
 
 
 class Worker(Process):
@@ -54,46 +47,95 @@ class Worker(Process):
         self,
         model_queue: Queue,
         results_queue: Queue,
-        configurer,
         log_root_name,
         log_queue,
         log_level,
+        solver_log_path: Path | None = None,
         **kwargs,
     ):
-        super(Worker, self).__init__()
-        # self.logger = configurer(log_root_name, log_queue, log_level)
+        super(Worker, self).__init__(daemon=True)
         self.worker_number = Worker.worker_idx
         Worker.worker_idx += 1
         self.model_queue: Queue = model_queue
         self.results_queue: Queue = results_queue
         self.solver_name = kwargs['solver_name']
-        # self.solver_options = kwargs["solver_options"]
-        self.opt = SolverFactory(self.solver_name)  # , options=self.solver_options)
+        self.solver_options = kwargs['solver_options']
+        self.opt = SolverFactory(self.solver_name, options=self.solver_options)
+        self.log_queue = log_queue
+        self.log_level = log_level
+        self.root_logger_name = log_root_name
+        self.solver_log_path = solver_log_path
+        self.solve_count = 0
 
     def run(self):
-        # self.logger.info('Worker %d spun up', self.worker_number)
+        logger = getLogger('.'.join((self.root_logger_name, 'worker', str(self.worker_number))))
+        logger.setLevel(self.log_level)
+        logger.propagate = (
+            False  # not propagating up the chain fixes issue on TRACE where we were getting dupes.
+        )
+        handler = logging.handlers.QueueHandler(self.log_queue)
+        logger.addHandler(handler)
+        logger.info('Worker %d spun up', self.worker_number)
+
+        # update the solver options to pass in a log location
         while True:
+            if self.solver_log_path:
+                # add the solver log path to options, if one is provided
+                log_location = Path(
+                    self.solver_log_path,
+                    f'solver_log_{str(self.worker_number)}_{self.solve_count}.log',
+                )
+                log_location = str(log_location)
+                match self.solver_name:
+                    case 'gurobi':
+                        self.solver_options.update({'LogFile': log_location})
+                    # case 'appsi_highs':
+                    #     self.solver_options.update({'log_file': log_location})
+                    case _:
+                        pass
+
+            self.opt.options = self.solver_options
+
             model: TemoaModel = self.model_queue.get()
-            if model is None:
-                print('received shutdown signal')
+            if model == 'ZEBRA':  # shutdown signal
+                if verbose:
+                    print(f'worker {self.worker_number} got shutdown signal')
+                logger.info('Worker %d received shutdown signal', self.worker_number)
+                self.results_queue.put('COYOTE')
                 break
             tic = datetime.now()
             try:
-                # sleep(model)
-                res: SolverResults = self.opt.solve(model)
+                self.solve_count += 1
+                res: SolverResults | None = self.opt.solve(model)
+
             except Exception as e:
-                # self.logger.warning('Failed to solve model: %s... skipping', model.name)
-                # self.logger.warning('Exception: %s', e)
-                pass
+                if verbose:
+                    print('bad solve')
+                logger.warning(
+                    'Worker %d failed to solve model: %s... skipping.  Exception: %s',
+                    self.worker_number,
+                    model.name,
+                    e,
+                )
+                res = None
             toc = datetime.now()
 
-            good_solve = check_optimal_termination(res)
-            if good_solve:
-                self.results_queue.put(model)
-                # self.logger.info('Worker %d solved a model in %0.2f minutes', self.worker_number, (toc - tic).total_seconds() / 60)
-                print(f'victory for worker {self.worker_number}')
-            # else:
-            #     status = res['Solver'].termination_condition
-            #     # self.logger.info('Worker %d did not solve.  Results status: %s', self.worker_number, status)
-
-        print('should be dying now...')
+            # guard against a bad "res" object...
+            try:
+                good_solve = check_optimal_termination(res)
+                if good_solve:
+                    self.results_queue.put(model)
+                    logger.info(
+                        'Worker %d solved a model in %0.2f minutes',
+                        self.worker_number,
+                        (toc - tic).total_seconds() / 60,
+                    )
+                    if verbose:
+                        print(f'Worker {self.worker_number} completed a successful solve')
+                else:
+                    status = res['Solver'].termination_condition
+                    logger.info(
+                        'Worker %d did not solve.  Results status: %s', self.worker_number, status
+                    )
+            except AttributeError:
+                pass

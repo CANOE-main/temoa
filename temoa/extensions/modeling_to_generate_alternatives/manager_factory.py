@@ -28,8 +28,8 @@ Created on:  4/16/24
 import sqlite3
 
 from temoa.extensions.modeling_to_generate_alternatives.mga_constants import MgaAxis, MgaWeighting
-from temoa.extensions.modeling_to_generate_alternatives.tech_activity_vectors import (
-    TechActivityVectors,
+from temoa.extensions.modeling_to_generate_alternatives.tech_activity_vector_manager import (
+    TechActivityVectorManager,
 )
 from temoa.extensions.modeling_to_generate_alternatives.vector_manager import VectorManager
 from temoa.temoa_model.temoa_model import TemoaModel
@@ -44,6 +44,12 @@ def get_manager(
 ) -> VectorManager:
     match axis:
         case MgaAxis.TECH_CATEGORY_ACTIVITY:
-            return TechActivityVectors(base_model=model, conn=con, **kwargs)
+            if weighting != MgaWeighting.HULL_EXPANSION:
+                raise NotImplementedError(
+                    'TECH_CATEGORY_ACTIVITY is only implemented for HULL_EXPANSION'
+                )
+            return TechActivityVectorManager(
+                base_model=model, conn=con, weighting=weighting, **kwargs
+            )
         case _:
             raise NotImplementedError('This axis is not yet supported')

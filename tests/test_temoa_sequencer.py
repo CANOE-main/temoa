@@ -39,6 +39,7 @@ params = [
     {'name': 'check', 'mode': TemoaMode.CHECK},
     {'name': 'pf', 'mode': TemoaMode.PERFECT_FORESIGHT},
     {'name': 'myopic', 'mode': TemoaMode.MYOPIC},
+    {'name': 'MGA', 'mode': TemoaMode.MGA},
 ]
 # using the myopic config file for now below, becuase (a) it is most current db, (b) it is self-referencing
 # for the database, which is needed for myopic, and (c) the mode is overriden anyhow!

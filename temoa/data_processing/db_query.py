@@ -1,4 +1,4 @@
-# TODO:  no clue what the purpose of this module is or why it exists separately.
+# Dev Note:  This module is unused and appears to be just a query executor.  Retained for now.  12JUN2024
 
 import getopt
 import re

@@ -8,8 +8,8 @@ CREATE TABLE MetaData
     PRIMARY KEY (element)
 );
 INSERT INTO MetaData VALUES('DB_MAJOR',3,'DB major version number');
-INSERT INTO MetaData VALUES('DB_MINOR',0,'DB minor version number');
-INSERT INTO MetaData VALUES('myopic_base_year',2000,'');
+INSERT INTO MetaData VALUES('DB_MINOR',1,'DB minor version number');
+INSERT INTO MetaData VALUES ('days_per_period', 365, 'count of days in each period');
 CREATE TABLE MetaDataReal
 (
     element TEXT,
@@ -33,22 +33,31 @@ CREATE TABLE OutputObjective
     objective_name    TEXT,
     total_system_cost REAL
 );
+CREATE TABLE SeasonLabel
+(
+    season TEXT PRIMARY KEY,
+    notes  TEXT
+);
+INSERT INTO SeasonLabel VALUES('s1',NULL);
+INSERT INTO SeasonLabel VALUES('s2',NULL);
 CREATE TABLE SectorLabel
 (
-    sector TEXT,
-    PRIMARY KEY (sector)
+    sector TEXT PRIMARY KEY,
+    notes  TEXT
 );
-INSERT INTO SectorLabel VALUES('supply');
-INSERT INTO SectorLabel VALUES('electric');
-INSERT INTO SectorLabel VALUES('transport');
-INSERT INTO SectorLabel VALUES('commercial');
-INSERT INTO SectorLabel VALUES('residential');
-INSERT INTO SectorLabel VALUES('industrial');
+INSERT INTO SectorLabel VALUES('supply',NULL);
+INSERT INTO SectorLabel VALUES('electric',NULL);
+INSERT INTO SectorLabel VALUES('transport',NULL);
+INSERT INTO SectorLabel VALUES('commercial',NULL);
+INSERT INTO SectorLabel VALUES('residential',NULL);
+INSERT INTO SectorLabel VALUES('industrial',NULL);
 CREATE TABLE CapacityCredit
 (
     region  TEXT,
-    period  INTEGER,
-    tech    TEXT,
+    period  INTEGER
+        REFERENCES TimePeriod (period),
+    tech    TEXT
+        REFERENCES Technology (tech),
     vintage INTEGER,
     credit  REAL,
     notes   TEXT,
@@ -58,8 +67,10 @@ CREATE TABLE CapacityCredit
 CREATE TABLE CapacityFactorProcess
 (
     region  TEXT,
-    season  TEXT
-        REFERENCES TimeSeason (season),
+    period  INTEGER
+        REFERENCES TimePeriod (period),
+    season TEXT
+        REFERENCES SeasonLabel (season),
     tod     TEXT
         REFERENCES TimeOfDay (tod),
     tech    TEXT
@@ -67,21 +78,23 @@ CREATE TABLE CapacityFactorProcess
     vintage INTEGER,
     factor  REAL,
     notes   TEXT,
-    PRIMARY KEY (region, season, tod, tech, vintage),
+    PRIMARY KEY (region, period, season, tod, tech, vintage),
     CHECK (factor >= 0 AND factor <= 1)
 );
 CREATE TABLE CapacityFactorTech
 (
     region TEXT,
+    period INTEGER
+        REFERENCES TimePeriod (period),
     season TEXT
-        REFERENCES TimeSeason (season),
+        REFERENCES SeasonLabel (season),
     tod    TEXT
         REFERENCES TimeOfDay (tod),
     tech   TEXT
         REFERENCES Technology (tech),
     factor REAL,
     notes  TEXT,
-    PRIMARY KEY (region, season, tod, tech),
+    PRIMARY KEY (region, period, season, tod, tech),
     CHECK (factor >= 0 AND factor <= 1)
 );
 CREATE TABLE CapacityToActivity
@@ -113,14 +126,31 @@ CREATE TABLE CommodityType
         PRIMARY KEY,
     description TEXT
 );
+INSERT INTO CommodityType VALUES('w','waste commodity');
+INSERT INTO CommodityType VALUES('wa','waste annual commodity');
+INSERT INTO CommodityType VALUES('wp','waste physical commodity');
+INSERT INTO CommodityType VALUES('a','annual commodity');
 INSERT INTO CommodityType VALUES('p','physical commodity');
 INSERT INTO CommodityType VALUES('e','emissions commodity');
 INSERT INTO CommodityType VALUES('d','demand commodity');
 INSERT INTO CommodityType VALUES('s','source commodity');
+CREATE TABLE ConstructionInput
+(
+    region      TEXT,
+    input_comm   TEXT
+        REFERENCES Commodity (name),
+    tech        TEXT
+        REFERENCES Technology (tech),
+    vintage     INTEGER
+        REFERENCES TimePeriod (period),
+    value       REAL,
+    units       TEXT,
+    notes       TEXT,
+    PRIMARY KEY (region, input_comm, tech, vintage)
+);
 CREATE TABLE CostEmission
 (
-    region    TEXT
-        REFERENCES Region (region),
+    region    TEXT,
     period    INTEGER
         REFERENCES TimePeriod (period),
     emis_comm TEXT NOT NULL
@@ -192,37 +222,42 @@ INSERT INTO Demand VALUES('electricville',2025,'RL',100.0,'','');
 CREATE TABLE DemandSpecificDistribution
 (
     region      TEXT,
-    season      TEXT
-        REFERENCES TimeSeason (season),
+    period      INTEGER
+        REFERENCES TimePeriod (period),
+    season TEXT
+        REFERENCES SeasonLabel (season),
     tod         TEXT
         REFERENCES TimeOfDay (tod),
     demand_name TEXT
         REFERENCES Commodity (name),
-    dds         REAL,
-    dds_notes   TEXT,
-    PRIMARY KEY (region, season, tod, demand_name),
-    CHECK (dds >= 0 AND dds <= 1)
+    dsd         REAL,
+    notes       TEXT,
+    PRIMARY KEY (region, period, season, tod, demand_name),
+    CHECK (dsd >= 0 AND dsd <= 1)
 );
-INSERT INTO DemandSpecificDistribution VALUES('electricville','s1','d1','RL',0.07499999999999999723,'');
-INSERT INTO DemandSpecificDistribution VALUES('electricville','s1','d2','RL',0.07499999999999999723,'');
-INSERT INTO DemandSpecificDistribution VALUES('electricville','s1','d3','RL',0.07499999999999999723,NULL);
-INSERT INTO DemandSpecificDistribution VALUES('electricville','s2','d1','RL',0.07499999999999999723,NULL);
-INSERT INTO DemandSpecificDistribution VALUES('electricville','s2','d2','RL',0.07499999999999999723,NULL);
-INSERT INTO DemandSpecificDistribution VALUES('electricville','s2','d3','RL',0.07499999999999999723,NULL);
-INSERT INTO DemandSpecificDistribution VALUES('electricville','s1','d4','RL',0.07499999999999999723,NULL);
-INSERT INTO DemandSpecificDistribution VALUES('electricville','s1','d5','RL',0.2000000000000000111,NULL);
-INSERT INTO DemandSpecificDistribution VALUES('electricville','s2','d4','RL',0.2000000000000000111,NULL);
-INSERT INTO DemandSpecificDistribution VALUES('electricville','s2','d5','RL',0.07499999999999999723,NULL);
-CREATE TABLE LoanRate
+INSERT INTO DemandSpecificDistribution VALUES('electricville',2025,'s1','d1','RL',0.07499999999999999723,'');
+INSERT INTO DemandSpecificDistribution VALUES('electricville',2025,'s1','d2','RL',0.07499999999999999723,'');
+INSERT INTO DemandSpecificDistribution VALUES('electricville',2025,'s1','d3','RL',0.07499999999999999723,NULL);
+INSERT INTO DemandSpecificDistribution VALUES('electricville',2025,'s2','d1','RL',0.07499999999999999723,NULL);
+INSERT INTO DemandSpecificDistribution VALUES('electricville',2025,'s2','d2','RL',0.07499999999999999723,NULL);
+INSERT INTO DemandSpecificDistribution VALUES('electricville',2025,'s2','d3','RL',0.07499999999999999723,NULL);
+INSERT INTO DemandSpecificDistribution VALUES('electricville',2025,'s1','d4','RL',0.07499999999999999723,NULL);
+INSERT INTO DemandSpecificDistribution VALUES('electricville',2025,'s1','d5','RL',0.2000000000000000111,NULL);
+INSERT INTO DemandSpecificDistribution VALUES('electricville',2025,'s2','d4','RL',0.2000000000000000111,NULL);
+INSERT INTO DemandSpecificDistribution VALUES('electricville',2025,'s2','d5','RL',0.07499999999999999723,NULL);
+CREATE TABLE EndOfLifeOutput
 (
-    region  TEXT,
-    tech    TEXT
+    region      TEXT,
+    tech        TEXT
         REFERENCES Technology (tech),
-    vintage INTEGER
+    vintage     INTEGER
         REFERENCES TimePeriod (period),
-    rate    REAL,
-    notes   TEXT,
-    PRIMARY KEY (region, tech, vintage)
+    output_comm   TEXT
+        REFERENCES Commodity (name),
+    value       REAL,
+    units       TEXT,
+    notes       TEXT,
+    PRIMARY KEY (region, tech, vintage, output_comm)
 );
 CREATE TABLE Efficiency
 (
@@ -244,6 +279,28 @@ INSERT INTO Efficiency VALUES('electricville','HYD','EH',2025,'ELC',1.0,NULL);
 INSERT INTO Efficiency VALUES('electricville','ELC','bulbs',2025,'RL',1.0,NULL);
 INSERT INTO Efficiency VALUES('electricville','earth','well',2025,'HYD',1.0,'water source');
 INSERT INTO Efficiency VALUES('electricville','ELC','batt',2025,'ELC',0.75,NULL);
+CREATE TABLE EfficiencyVariable
+(
+    region      TEXT,
+    period      INTEGER
+        REFERENCES TimePeriod (period),
+    season TEXT
+        REFERENCES SeasonLabel (season),
+    tod         TEXT
+        REFERENCES TimeOfDay (tod),
+    input_comm  TEXT
+        REFERENCES Commodity (name),
+    tech        TEXT
+        REFERENCES Technology (tech),
+    vintage     INTEGER
+        REFERENCES TimePeriod (period),
+    output_comm TEXT
+        REFERENCES Commodity (name),
+    efficiency  REAL,
+    notes       TEXT,
+    PRIMARY KEY (region, period, season, tod, input_comm, tech, vintage, output_comm),
+    CHECK (efficiency > 0)
+);
 CREATE TABLE EmissionActivity
 (
     region      TEXT,
@@ -263,6 +320,34 @@ CREATE TABLE EmissionActivity
     PRIMARY KEY (region, emis_comm, input_comm, tech, vintage, output_comm)
 );
 INSERT INTO EmissionActivity VALUES('electricville','co2','HYD','EH',2025,'ELC',0.02000000000000000041,NULL,NULL);
+CREATE TABLE EmissionEmbodied
+(
+    region      TEXT,
+    emis_comm   TEXT
+        REFERENCES Commodity (name),
+    tech        TEXT
+        REFERENCES Technology (tech),
+    vintage     INTEGER
+        REFERENCES TimePeriod (period),
+    value       REAL,
+    units       TEXT,
+    notes       TEXT,
+    PRIMARY KEY (region, emis_comm,  tech, vintage)
+);
+CREATE TABLE EmissionEndOfLife
+(
+    region      TEXT,
+    emis_comm   TEXT
+        REFERENCES Commodity (name),
+    tech        TEXT
+        REFERENCES Technology (tech),
+    vintage     INTEGER
+        REFERENCES TimePeriod (period),
+    value       REAL,
+    units       TEXT,
+    notes       TEXT,
+    PRIMARY KEY (region, emis_comm,  tech, vintage)
+);
 CREATE TABLE ExistingCapacity
 (
     region   TEXT,
@@ -281,33 +366,27 @@ CREATE TABLE TechGroup
         PRIMARY KEY,
     notes      TEXT
 );
-CREATE TABLE GrowthRateMax
-(
-    region TEXT,
-    tech   TEXT
-        REFERENCES Technology (tech),
-    rate   REAL,
-    notes  TEXT,
-    PRIMARY KEY (region, tech)
-);
-CREATE TABLE GrowthRateSeed
-(
-    region TEXT,
-    tech   TEXT
-        REFERENCES Technology (tech),
-    seed   REAL,
-    units  TEXT,
-    notes  TEXT,
-    PRIMARY KEY (region, tech)
-);
-CREATE TABLE LoanLifetimeTech
+CREATE TABLE LoanLifetimeProcess
 (
     region   TEXT,
     tech     TEXT
         REFERENCES Technology (tech),
+    vintage  INTEGER
+        REFERENCES TimePeriod (period),
     lifetime REAL,
     notes    TEXT,
-    PRIMARY KEY (region, tech)
+    PRIMARY KEY (region, tech, vintage)
+);
+CREATE TABLE LoanRate
+(
+    region  TEXT,
+    tech    TEXT
+        REFERENCES Technology (tech),
+    vintage INTEGER
+        REFERENCES TimePeriod (period),
+    rate    REAL,
+    notes   TEXT,
+    PRIMARY KEY (region, tech, vintage)
 );
 CREATE TABLE LifetimeProcess
 (
@@ -331,6 +410,305 @@ CREATE TABLE LifetimeTech
 );
 INSERT INTO LifetimeTech VALUES('electricville','EH',60.0,'');
 INSERT INTO LifetimeTech VALUES('electricville','bulbs',100.0,'super LED!');
+CREATE TABLE Operator
+(
+	operator TEXT PRIMARY KEY,
+	notes TEXT
+);
+INSERT INTO Operator VALUES('e','equal to');
+INSERT INTO Operator VALUES('le','less than or equal to');
+INSERT INTO Operator VALUES('ge','greater than or equal to');
+CREATE TABLE LimitGrowthCapacity
+(
+    region TEXT,
+    tech_or_group   TEXT,
+    operator TEXT NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    rate   REAL NOT NULL DEFAULT 0,
+    seed   REAL NOT NULL DEFAULT 0,
+    seed_units TEXT,
+    notes  TEXT,
+    PRIMARY KEY (region, tech_or_group, operator)
+);
+CREATE TABLE LimitDegrowthCapacity
+(
+    region TEXT,
+    tech_or_group   TEXT,
+    operator TEXT NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    rate   REAL NOT NULL DEFAULT 0,
+    seed   REAL NOT NULL DEFAULT 0,
+    seed_units TEXT,
+    notes  TEXT,
+    PRIMARY KEY (region, tech_or_group, operator)
+);
+CREATE TABLE LimitGrowthNewCapacity
+(
+    region TEXT,
+    tech_or_group   TEXT,
+    operator TEXT NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    rate   REAL NOT NULL DEFAULT 0,
+    seed   REAL NOT NULL DEFAULT 0,
+    seed_units TEXT,
+    notes  TEXT,
+    PRIMARY KEY (region, tech_or_group, operator)
+);
+CREATE TABLE LimitDegrowthNewCapacity
+(
+    region TEXT,
+    tech_or_group   TEXT,
+    operator TEXT NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    rate   REAL NOT NULL DEFAULT 0,
+    seed   REAL NOT NULL DEFAULT 0,
+    seed_units TEXT,
+    notes  TEXT,
+    PRIMARY KEY (region, tech_or_group, operator)
+);
+CREATE TABLE LimitGrowthNewCapacityDelta
+(
+    region TEXT,
+    tech_or_group   TEXT,
+    operator TEXT NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    rate   REAL NOT NULL DEFAULT 0,
+    seed   REAL NOT NULL DEFAULT 0,
+    seed_units TEXT,
+    notes  TEXT,
+    PRIMARY KEY (region, tech_or_group, operator)
+);
+CREATE TABLE LimitDegrowthNewCapacityDelta
+(
+    region TEXT,
+    tech_or_group   TEXT,
+    operator TEXT NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    rate   REAL NOT NULL DEFAULT 0,
+    seed   REAL NOT NULL DEFAULT 0,
+    seed_units TEXT,
+    notes  TEXT,
+    PRIMARY KEY (region, tech_or_group, operator)
+);
+CREATE TABLE LimitStorageLevelFraction
+(
+    region   TEXT,
+    period   INTEGER
+        REFERENCES TimePeriod (period),
+    season TEXT
+        REFERENCES SeasonLabel (season),
+    tod      TEXT
+        REFERENCES TimeOfDay (tod),
+    tech     TEXT
+        REFERENCES Technology (tech),
+    vintage  INTEGER
+        REFERENCES TimePeriod (period),
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    fraction REAL,
+    notes    TEXT,
+    PRIMARY KEY(region, period, season, tod, tech, vintage, operator)
+);
+INSERT INTO LimitStorageLevelFraction VALUES('electricville',2025,'s1','d1','batt',2025,'e',0.5,NULL);
+CREATE TABLE LimitActivity
+(
+    region  TEXT,
+    period  INTEGER
+        REFERENCES TimePeriod (period),
+    tech_or_group   TEXT,
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    activity REAL,
+    units   TEXT,
+    notes   TEXT,
+    PRIMARY KEY (region, period, tech_or_group, operator)
+);
+CREATE TABLE LimitActivityShare
+(
+    region         TEXT,
+    period         INTEGER
+        REFERENCES TimePeriod (period),
+    sub_group      TEXT,
+    super_group    TEXT,
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    share REAL,
+    notes          TEXT,
+    PRIMARY KEY (region, period, sub_group, super_group, operator)
+);
+CREATE TABLE LimitAnnualCapacityFactor
+(
+    region      TEXT,
+    period      INTEGER
+        REFERENCES TimePeriod (period),
+    tech        TEXT
+        REFERENCES Technology (tech),
+    output_comm TEXT
+        REFERENCES Commodity (name),
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    factor      REAL,
+    notes       TEXT,
+    PRIMARY KEY (region, period, tech, operator),
+    CHECK (factor >= 0 AND factor <= 1)
+);
+CREATE TABLE LimitCapacity
+(
+    region  TEXT,
+    period  INTEGER
+        REFERENCES TimePeriod (period),
+    tech_or_group   TEXT,
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    capacity REAL,
+    units   TEXT,
+    notes   TEXT,
+    PRIMARY KEY (region, period, tech_or_group, operator)
+);
+INSERT INTO LimitCapacity VALUES('electricville',2025,'EH','ge',0.1000000000000000055,'','');
+INSERT INTO LimitCapacity VALUES('electricville',2025,'batt','ge',0.1000000000000000055,'','');
+INSERT INTO LimitCapacity VALUES('electricville',2025,'EH','le',200.0,'','');
+INSERT INTO LimitCapacity VALUES('electricville',2025,'batt','le',100.0,'','');
+CREATE TABLE LimitCapacityShare
+(
+    region         TEXT,
+    period         INTEGER
+        REFERENCES TimePeriod (period),
+    sub_group      TEXT,
+    super_group    TEXT,
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    share REAL,
+    notes          TEXT,
+    PRIMARY KEY (region, period, sub_group, super_group, operator)
+);
+CREATE TABLE LimitNewCapacity
+(
+    region  TEXT,
+    period  INTEGER
+        REFERENCES TimePeriod (period),
+    tech_or_group   TEXT,
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    new_cap REAL,
+    units   TEXT,
+    notes   TEXT,
+    PRIMARY KEY (region, period, tech_or_group, operator)
+);
+CREATE TABLE LimitNewCapacityShare
+(
+    region         TEXT,
+    period         INTEGER
+        REFERENCES TimePeriod (period),
+    sub_group      TEXT,
+    super_group    TEXT,
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    share REAL,
+    notes          TEXT,
+    PRIMARY KEY (region, period, sub_group, super_group, operator)
+);
+CREATE TABLE LimitResource
+(
+    region  TEXT,
+    tech_or_group   TEXT,
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    cum_act REAL,
+    units   TEXT,
+    notes   TEXT,
+    PRIMARY KEY (region, tech_or_group, operator)
+);
+CREATE TABLE LimitSeasonalCapacityFactor
+(
+	region  TEXT
+        REFERENCES Region (region),
+	period	INTEGER
+        REFERENCES TimePeriod (period),
+	season TEXT
+        REFERENCES SeasonLabel (season),
+	tech    TEXT
+        REFERENCES Technology (tech),
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+	factor	REAL,
+	notes	TEXT,
+	PRIMARY KEY(region, period, season, tech, operator)
+);
+CREATE TABLE LimitTechInputSplit
+(
+    region         TEXT,
+    period         INTEGER
+        REFERENCES TimePeriod (period),
+    input_comm     TEXT
+        REFERENCES Commodity (name),
+    tech           TEXT
+        REFERENCES Technology (tech),
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    proportion REAL,
+    notes          TEXT,
+    PRIMARY KEY (region, period, input_comm, tech, operator)
+);
+CREATE TABLE LimitTechInputSplitAnnual
+(
+    region         TEXT,
+    period         INTEGER
+        REFERENCES TimePeriod (period),
+    input_comm     TEXT
+        REFERENCES Commodity (name),
+    tech           TEXT
+        REFERENCES Technology (tech),
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    proportion REAL,
+    notes          TEXT,
+    PRIMARY KEY (region, period, input_comm, tech, operator)
+);
+CREATE TABLE LimitTechOutputSplit
+(
+    region         TEXT,
+    period         INTEGER
+        REFERENCES TimePeriod (period),
+    tech           TEXT
+        REFERENCES Technology (tech),
+    output_comm    TEXT
+        REFERENCES Commodity (name),
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    proportion REAL,
+    notes          TEXT,
+    PRIMARY KEY (region, period, tech, output_comm, operator)
+);
+CREATE TABLE LimitTechOutputSplitAnnual
+(
+    region         TEXT,
+    period         INTEGER
+        REFERENCES TimePeriod (period),
+    tech           TEXT
+        REFERENCES Technology (tech),
+    output_comm    TEXT
+        REFERENCES Commodity (name),
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    proportion REAL,
+    notes          TEXT,
+    PRIMARY KEY (region, period, tech, output_comm, operator)
+);
+CREATE TABLE LimitEmission
+(
+    region    TEXT,
+    period    INTEGER
+        REFERENCES TimePeriod (period),
+    emis_comm TEXT
+        REFERENCES Commodity (name),
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    value     REAL,
+    units     TEXT,
+    notes     TEXT,
+    PRIMARY KEY (region, period, emis_comm, operator)
+);
 CREATE TABLE LinkedTech
 (
     primary_region TEXT,
@@ -342,92 +720,6 @@ CREATE TABLE LinkedTech
         REFERENCES Technology (tech),
     notes          TEXT,
     PRIMARY KEY (primary_region, primary_tech, emis_comm)
-);
-CREATE TABLE MaxActivity
-(
-    region  TEXT,
-    period  INTEGER
-        REFERENCES TimePeriod (period),
-    tech    TEXT
-        REFERENCES Technology (tech),
-    max_act REAL,
-    units   TEXT,
-    notes   TEXT,
-    PRIMARY KEY (region, period, tech)
-);
-CREATE TABLE MaxCapacity
-(
-    region  TEXT,
-    period  INTEGER
-        REFERENCES TimePeriod (period),
-    tech    TEXT
-        REFERENCES Technology (tech),
-    max_cap REAL,
-    units   TEXT,
-    notes   TEXT,
-    PRIMARY KEY (region, period, tech)
-);
-INSERT INTO MaxCapacity VALUES('electricville',2025,'EH',200.0,'','');
-INSERT INTO MaxCapacity VALUES('electricville',2025,'batt',100.0,'','');
-CREATE TABLE MaxResource
-(
-    region  TEXT,
-    tech    TEXT
-        REFERENCES Technology (tech),
-    max_res REAL,
-    units   TEXT,
-    notes   TEXT,
-    PRIMARY KEY (region, tech)
-);
-CREATE TABLE MinActivity
-(
-    region  TEXT,
-    period  INTEGER
-        REFERENCES TimePeriod (period),
-    tech    TEXT
-        REFERENCES Technology (tech),
-    min_act REAL,
-    units   TEXT,
-    notes   TEXT,
-    PRIMARY KEY (region, period, tech)
-);
-CREATE TABLE MaxCapacityGroup
-(
-    region     TEXT,
-    period     INTEGER
-        REFERENCES TimePeriod (period),
-    group_name TEXT
-        REFERENCES TechGroup (group_name),
-    max_cap    REAL,
-    units      TEXT,
-    notes      TEXT,
-    PRIMARY KEY (region, period, group_name)
-);
-CREATE TABLE MinCapacity
-(
-    region  TEXT,
-    period  INTEGER
-        REFERENCES TimePeriod (period),
-    tech    TEXT
-        REFERENCES Technology (tech),
-    min_cap REAL,
-    units   TEXT,
-    notes   TEXT,
-    PRIMARY KEY (region, period, tech)
-);
-INSERT INTO MinCapacity VALUES('electricville',2025,'EH',0.1000000000000000055,'','');
-INSERT INTO MinCapacity VALUES('electricville',2025,'batt',0.1000000000000000055,'','');
-CREATE TABLE MinCapacityGroup
-(
-    region     TEXT,
-    period     INTEGER
-        REFERENCES TimePeriod (period),
-    group_name TEXT
-        REFERENCES TechGroup (group_name),
-    min_cap    REAL,
-    units      TEXT,
-    notes      TEXT,
-    PRIMARY KEY (region, period, group_name)
 );
 CREATE TABLE OutputCurtailment
 (
@@ -491,7 +783,8 @@ CREATE TABLE OutputRetiredCapacity
         REFERENCES Technology (tech),
     vintage  INTEGER
         REFERENCES TimePeriod (period),
-    capacity REAL,
+    cap_eol REAL,
+    cap_early REAL,
     PRIMARY KEY (region, scenario, period, tech, vintage)
 );
 CREATE TABLE OutputFlowIn
@@ -502,8 +795,8 @@ CREATE TABLE OutputFlowIn
         REFERENCES SectorLabel (sector),
     period      INTEGER
         REFERENCES TimePeriod (period),
-    season      TEXT
-        REFERENCES TimeSeason (season),
+    season TEXT
+        REFERENCES SeasonLabel (season),
     tod         TEXT
         REFERENCES TimeOfDay (tod),
     input_comm  TEXT
@@ -525,8 +818,8 @@ CREATE TABLE OutputFlowOut
         REFERENCES SectorLabel (sector),
     period      INTEGER
         REFERENCES TimePeriod (period),
-    season      TEXT
-        REFERENCES TimePeriod (period),
+    season TEXT
+        REFERENCES SeasonLabel (season),
     tod         TEXT
         REFERENCES TimeOfDay (tod),
     input_comm  TEXT
@@ -540,27 +833,49 @@ CREATE TABLE OutputFlowOut
     flow        REAL,
     PRIMARY KEY (region, scenario, period, season, tod, input_comm, tech, vintage, output_comm)
 );
+CREATE TABLE OutputStorageLevel
+(
+    scenario TEXT,
+    region TEXT,
+    sector TEXT
+        REFERENCES SectorLabel (sector),
+    period INTEGER
+        REFERENCES TimePeriod (period),
+    season TEXT
+        REFERENCES SeasonLabel (season),
+    tod TEXT
+        REFERENCES TimeOfDay (tod),
+    tech TEXT
+        REFERENCES Technology (tech),
+    vintage INTEGER
+        REFERENCES TimePeriod (period),
+    level REAL,
+    PRIMARY KEY (scenario, region, period, season, tod, tech, vintage)
+);
 CREATE TABLE PlanningReserveMargin
 (
     region TEXT
         PRIMARY KEY
         REFERENCES Region (region),
-    margin REAL
+    margin REAL,
+    notes TEXT
 );
-CREATE TABLE RampDown
+CREATE TABLE RampDownHourly
 (
     region TEXT,
     tech   TEXT
         REFERENCES Technology (tech),
     rate   REAL,
+    notes TEXT,
     PRIMARY KEY (region, tech)
 );
-CREATE TABLE RampUp
+CREATE TABLE RampUpHourly
 (
     region TEXT,
     tech   TEXT
         REFERENCES Technology (tech),
     rate   REAL,
+    notes TEXT,
     PRIMARY KEY (region, tech)
 );
 CREATE TABLE Region
@@ -570,27 +885,44 @@ CREATE TABLE Region
     notes  TEXT
 );
 INSERT INTO Region VALUES('electricville',NULL);
-CREATE TABLE TimeSegmentFraction
+CREATE TABLE ReserveCapacityDerate
 (
+    region  TEXT,
+    period  INTEGER
+        REFERENCES TimePeriod (period),
     season  TEXT
-        REFERENCES TimeSeason (season),
+    	REFERENCES SeasonLabel (season),
+    tech    TEXT
+        REFERENCES Technology (tech),
+    vintage INTEGER,
+    factor  REAL,
+    notes   TEXT,
+    PRIMARY KEY (region, period, season, tech, vintage),
+    CHECK (factor >= 0 AND factor <= 1)
+);
+CREATE TABLE TimeSegmentFraction
+(   
+    period INTEGER
+        REFERENCES TimePeriod (period),
+    season TEXT
+        REFERENCES SeasonLabel (season),
     tod     TEXT
         REFERENCES TimeOfDay (tod),
     segfrac REAL,
     notes   TEXT,
-    PRIMARY KEY (season, tod),
+    PRIMARY KEY (period, season, tod),
     CHECK (segfrac >= 0 AND segfrac <= 1)
 );
-INSERT INTO TimeSegmentFraction VALUES('s1','d3',0.1000000000000000055,NULL);
-INSERT INTO TimeSegmentFraction VALUES('s2','d1',0.1000000000000000055,NULL);
-INSERT INTO TimeSegmentFraction VALUES('s2','d2',0.1000000000000000055,NULL);
-INSERT INTO TimeSegmentFraction VALUES('s2','d3',0.1000000000000000055,NULL);
-INSERT INTO TimeSegmentFraction VALUES('s1','d1',0.1000000000000000055,NULL);
-INSERT INTO TimeSegmentFraction VALUES('s1','d2',0.1000000000000000055,NULL);
-INSERT INTO TimeSegmentFraction VALUES('s1','d4',0.1000000000000000055,NULL);
-INSERT INTO TimeSegmentFraction VALUES('s1','d5',0.1000000000000000055,NULL);
-INSERT INTO TimeSegmentFraction VALUES('s2','d4',0.1000000000000000055,NULL);
-INSERT INTO TimeSegmentFraction VALUES('s2','d5',0.1000000000000000055,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2025,'s1','d3',0.1000000000000000055,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2025,'s2','d1',0.1000000000000000055,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2025,'s2','d2',0.1000000000000000055,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2025,'s2','d3',0.1000000000000000055,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2025,'s1','d1',0.1000000000000000055,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2025,'s1','d2',0.1000000000000000055,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2025,'s1','d4',0.1000000000000000055,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2025,'s1','d5',0.1000000000000000055,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2025,'s2','d4',0.1000000000000000055,NULL);
+INSERT INTO TimeSegmentFraction VALUES(2025,'s2','d5',0.1000000000000000055,NULL);
 CREATE TABLE StorageDuration
 (
     region   TEXT,
@@ -600,12 +932,17 @@ CREATE TABLE StorageDuration
     PRIMARY KEY (region, tech)
 );
 INSERT INTO StorageDuration VALUES('electricville','batt',10.0,NULL);
-CREATE TABLE StorageInit
+CREATE TABLE LifetimeSurvivalCurve
 (
-    tech  TEXT
-        PRIMARY KEY,
-    value REAL,
-    notes TEXT
+    region  TEXT    NOT NULL,
+    period  INTEGER NOT NULL,
+    tech    TEXT    NOT NULL
+        REFERENCES Technology (tech),
+    vintage INTEGER NOT NULL
+        REFERENCES TimePeriod (period),
+    fraction  REAL,
+    notes   TEXT,
+    PRIMARY KEY (region, period, tech, vintage)
 );
 CREATE TABLE TechnologyType
 (
@@ -613,49 +950,9 @@ CREATE TABLE TechnologyType
         PRIMARY KEY,
     description TEXT
 );
-INSERT INTO TechnologyType VALUES('r','resource technology');
 INSERT INTO TechnologyType VALUES('p','production technology');
 INSERT INTO TechnologyType VALUES('pb','baseload production technology');
 INSERT INTO TechnologyType VALUES('ps','storage production technology');
-CREATE TABLE TechInputSplit
-(
-    region         TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
-    input_comm     TEXT
-        REFERENCES Commodity (name),
-    tech           TEXT
-        REFERENCES Technology (tech),
-    min_proportion REAL,
-    notes          TEXT,
-    PRIMARY KEY (region, period, input_comm, tech)
-);
-CREATE TABLE TechInputSplitAverage
-(
-    region         TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
-    input_comm     TEXT
-        REFERENCES Commodity (name),
-    tech           TEXT
-        REFERENCES Technology (tech),
-    min_proportion REAL,
-    notes          TEXT,
-    PRIMARY KEY (region, period, input_comm, tech)
-);
-CREATE TABLE TechOutputSplit
-(
-    region         TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
-    tech           TEXT
-        REFERENCES Technology (tech),
-    output_comm    TEXT
-        REFERENCES Commodity (name),
-    min_proportion REAL,
-    notes          TEXT,
-    PRIMARY KEY (region, period, tech, output_comm)
-);
 CREATE TABLE TimeOfDay
 (
     sequence INTEGER UNIQUE,
@@ -680,12 +977,29 @@ INSERT INTO TimePeriod VALUES(2,2025,'f');
 INSERT INTO TimePeriod VALUES(3,2030,'f');
 CREATE TABLE TimeSeason
 (
-    sequence INTEGER UNIQUE,
-    season   TEXT
-        PRIMARY KEY
+    period INTEGER
+        REFERENCES TimePeriod (period),
+    sequence INTEGER,
+    season TEXT
+        REFERENCES SeasonLabel (season),
+    notes TEXT,
+    PRIMARY KEY (period, sequence, season)
 );
-INSERT INTO TimeSeason VALUES(1,'s1');
-INSERT INTO TimeSeason VALUES(2,'s2');
+INSERT INTO TimeSeason VALUES(2025,1,'s1',NULL);
+INSERT INTO TimeSeason VALUES(2025,2,'s2',NULL);
+CREATE TABLE TimeSeasonSequential
+(
+    period INTEGER
+        REFERENCES TimePeriod (period),
+    sequence INTEGER,
+    seas_seq TEXT,
+    season TEXT
+        REFERENCES SeasonLabel (season),
+    num_days REAL NOT NULL,
+    notes TEXT,
+    PRIMARY KEY (period, sequence, seas_seq, season),
+    CHECK (num_days > 0)
+);
 CREATE TABLE TimePeriodType
 (
     label       TEXT
@@ -694,162 +1008,6 @@ CREATE TABLE TimePeriodType
 );
 INSERT INTO TimePeriodType VALUES('e','existing vintages');
 INSERT INTO TimePeriodType VALUES('f','future');
-CREATE TABLE MaxActivityShare
-(
-    region         TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
-    tech           TEXT
-        REFERENCES Technology (tech),
-    group_name     TEXT
-        REFERENCES TechGroup (group_name),
-    max_proportion REAL,
-    notes          TEXT,
-    PRIMARY KEY (region, period, tech, group_name)
-);
-CREATE TABLE MaxCapacityShare
-(
-    region         TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
-    tech           TEXT
-        REFERENCES Technology (tech),
-    group_name     TEXT
-        REFERENCES TechGroup (group_name),
-    max_proportion REAL,
-    notes          TEXT,
-    PRIMARY KEY (region, period, tech, group_name)
-);
-CREATE TABLE MaxAnnualCapacityFactor
-(
-    region      TEXT,
-    period      INTEGER
-        REFERENCES TimePeriod (period),
-    tech        TEXT
-        REFERENCES Technology (tech),
-    output_comm TEXT
-        REFERENCES Commodity (name),
-    factor      REAL,
-    source      TEXT,
-    notes       TEXT,
-    PRIMARY KEY (region, period, tech),
-    CHECK (factor >= 0 AND factor <= 1)
-);
-CREATE TABLE MaxNewCapacity
-(
-    region  TEXT,
-    period  INTEGER
-        REFERENCES TimePeriod (period),
-    tech    TEXT
-        REFERENCES Technology (tech),
-    max_cap REAL,
-    units   TEXT,
-    notes   TEXT,
-    PRIMARY KEY (region, period, tech)
-);
-CREATE TABLE MaxNewCapacityGroup
-(
-    region      TEXT,
-    period      INTEGER
-        REFERENCES TimePeriod (period),
-    group_name  TEXT
-        REFERENCES TechGroup (group_name),
-    max_new_cap REAL,
-    units       TEXT,
-    notes       TEXT,
-    PRIMARY KEY (region, period, group_name)
-);
-CREATE TABLE MaxNewCapacityShare
-(
-    region         TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
-    tech           TEXT
-        REFERENCES Technology (tech),
-    group_name     TEXT
-        REFERENCES TechGroup (group_name),
-    max_proportion REAL,
-    notes          TEXT,
-    PRIMARY KEY (region, period, tech, group_name)
-);
-CREATE TABLE MinActivityShare
-(
-    region         TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
-    tech           TEXT
-        REFERENCES Technology (tech),
-    group_name     TEXT
-        REFERENCES TechGroup (group_name),
-    min_proportion REAL,
-    notes          TEXT,
-    PRIMARY KEY (region, period, tech, group_name)
-);
-CREATE TABLE MinAnnualCapacityFactor
-(
-    region      TEXT,
-    period      INTEGER
-        REFERENCES TimePeriod (period),
-    tech        TEXT
-        REFERENCES Technology (tech),
-    output_comm TEXT
-        REFERENCES Commodity (name),
-    factor      REAL,
-    source      TEXT,
-    notes       TEXT,
-    PRIMARY KEY (region, period, tech),
-    CHECK (factor >= 0 AND factor <= 1)
-);
-CREATE TABLE MinCapacityShare
-(
-    region         TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
-    tech           TEXT
-        REFERENCES Technology (tech),
-    group_name     TEXT
-        REFERENCES TechGroup (group_name),
-    min_proportion REAL,
-    notes          TEXT,
-    PRIMARY KEY (region, period, tech, group_name)
-);
-CREATE TABLE MinNewCapacity
-(
-    region  TEXT,
-    period  INTEGER
-        REFERENCES TimePeriod (period),
-    tech    TEXT
-        REFERENCES Technology (tech),
-    min_cap REAL,
-    units   TEXT,
-    notes   TEXT,
-    PRIMARY KEY (region, period, tech)
-);
-CREATE TABLE MinNewCapacityGroup
-(
-    region      TEXT,
-    period      INTEGER
-        REFERENCES TimePeriod (period),
-    group_name  TEXT
-        REFERENCES TechGroup (group_name),
-    min_new_cap REAL,
-    units       TEXT,
-    notes       TEXT,
-    PRIMARY KEY (region, period, group_name)
-);
-CREATE TABLE MinNewCapacityShare
-(
-    region         TEXT,
-    period         INTEGER
-        REFERENCES TimePeriod (period),
-    tech           TEXT
-        REFERENCES Technology (tech),
-    group_name     TEXT
-        REFERENCES TechGroup (group_name),
-    max_proportion REAL,
-    notes          TEXT,
-    PRIMARY KEY (region, period, tech, group_name)
-);
 CREATE TABLE OutputEmission
 (
     scenario  TEXT,
@@ -866,42 +1024,6 @@ CREATE TABLE OutputEmission
         REFERENCES TimePeriod (period),
     emission  REAL,
     PRIMARY KEY (region, scenario, period, emis_comm, tech, vintage)
-);
-CREATE TABLE MinActivityGroup
-(
-    region     TEXT,
-    period     INTEGER
-        REFERENCES TimePeriod (period),
-    group_name TEXT
-        REFERENCES TechGroup (group_name),
-    min_act    REAL,
-    units      TEXT,
-    notes      TEXT,
-    PRIMARY KEY (region, period, group_name)
-);
-CREATE TABLE EmissionLimit
-(
-    region    TEXT,
-    period    INTEGER
-        REFERENCES TimePeriod (period),
-    emis_comm TEXT
-        REFERENCES Commodity (name),
-    value     REAL,
-    units     TEXT,
-    notes     TEXT,
-    PRIMARY KEY (region, period, emis_comm)
-);
-CREATE TABLE MaxActivityGroup
-(
-    region     TEXT,
-    period     INTEGER
-        REFERENCES TimePeriod (period),
-    group_name TEXT
-        REFERENCES TechGroup (group_name),
-    max_act    REAL,
-    units      TEXT,
-    notes      TEXT,
-    PRIMARY KEY (region, period, group_name)
 );
 CREATE TABLE RPSRequirement
 (
@@ -935,12 +1057,12 @@ CREATE TABLE Technology
     curtail      INTEGER NOT NULL DEFAULT 0,
     retire       INTEGER NOT NULL DEFAULT 0,
     flex         INTEGER NOT NULL DEFAULT 0,
-    variable     INTEGER NOT NULL DEFAULT 0,
     exchange     INTEGER NOT NULL DEFAULT 0,
+    seas_stor    INTEGER NOT NULL DEFAULT 0,
     description  TEXT,
     FOREIGN KEY (flag) REFERENCES TechnologyType (label)
 );
-INSERT INTO Technology VALUES('well','r','supply','water','',0,0,0,0,0,0,0,0,'plain old water');
+INSERT INTO Technology VALUES('well','p','supply','water','',0,0,0,0,0,0,0,0,'plain old water');
 INSERT INTO Technology VALUES('bulbs','p','residential','electric','',0,0,0,0,0,0,0,0,' residential lighting');
 INSERT INTO Technology VALUES('EH','pb','electric','hydro','',0,0,0,0,0,0,0,0,'hydro power electric plant');
 INSERT INTO Technology VALUES('batt','ps','electric','electric','',0,0,0,0,0,0,0,0,'big battery');
@@ -948,9 +1070,10 @@ CREATE TABLE OutputCost
 (
     scenario TEXT,
     region   TEXT,
-    period   INTEGER,
-    tech     TEXT,
-    vintage  INTEGER,
+    sector   TEXT REFERENCES SectorLabel (sector),
+    period   INTEGER REFERENCES TimePeriod (period),
+    tech     TEXT REFERENCES Technology (tech),
+    vintage  INTEGER REFERENCES TimePeriod (period),
     d_invest REAL,
     d_fixed  REAL,
     d_var    REAL,
