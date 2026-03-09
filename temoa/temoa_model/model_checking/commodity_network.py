@@ -274,28 +274,28 @@ class CommodityNetwork:
         self.other_orphans |= self.orig_connex - demand_connex - self.good_connections
 
         if self.other_orphans:
-            logger.info(
+            logger.warning(
                 'Source tracing revealed %d "other" (non-demand) orphaned processes in region %s, period %d.',
                 len(self.other_orphans),
                 self.region,
                 self.period,
             )
             for orphan in sorted(self.other_orphans, key=lambda x: x[1]):
-                logger.info(
+                logger.warning(
                     'Discovered orphaned process:   %s in region %s, period %d',
                     orphan,
                     self.region,
                     self.period,
                 )
         if self.demand_orphans:
-            logger.info(
+            logger.warning(
                 'Source tracing revealed %d demand-side orphaned processes in region %s, period %d.',
                 len(self.demand_orphans),
                 self.region,
                 self.period,
             )
             for orphan in sorted(self.demand_orphans, key=lambda x: x[1]):
-                logger.info(
+                logger.warning(
                     'Discovered orphaned process:   %s in region %s, period %d',
                     orphan,
                     self.region,

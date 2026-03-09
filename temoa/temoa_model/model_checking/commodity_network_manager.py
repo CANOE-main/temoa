@@ -71,61 +71,24 @@ class CommodityNetworkManager:
         datasets with complex lifetime relationships between dependent techs and few alternative
         vintages or such may take a few iterations to clean.
         """
-        done = False
-        iter_count = 0
 
-        while not done:
-            iter_count += 1
-            demand_orphans_this_pass: set[Tech] = set()
-            other_orphans_this_pass: set[Tech] = set()
-            for period in self.periods:
-                cn = CommodityNetwork(region=region, period=period, model_data=data)
-                cn.analyze_network()
+        for period in self.periods:
+            cn = CommodityNetwork(region=region, period=period, model_data=data)
+            cn.analyze_network()
 
-                # check for unsupported demands..
-                unsupported_demands = cn.unsupported_demands()
-                for commodity in unsupported_demands:
-                    logger.error(
-                        'Demand %s is not supported back to source commodities in region %s period %d',
-                        commodity,
-                        cn.region,
-                        cn.period,
-                    )
+            # check for unsupported demands..
+            unsupported_demands = cn.unsupported_demands()
+            for commodity in unsupported_demands:
+                logger.warning(
+                    'Demand %s is not supported back to source commodities in region %s period %d',
+                    commodity,
+                    cn.region,
+                    cn.period,
+                )
 
-                # gather orphans...
-                new_demand_orphans = cn.get_demand_side_orphans()
-                new_other_orphans = cn.get_other_orphans()
-
-                # add the orphans to the orphanages...
-                self.demand_orphans[region, period] |= new_demand_orphans
-                self.other_orphans[region, period] |= new_other_orphans
-
-                # add them to the collections for the "pass"
-                demand_orphans_this_pass |= new_demand_orphans
-                other_orphans_this_pass |= new_other_orphans
-
-            # clean up the good tech listing and decide whether to go again...
-            # dev note:  we could clean up the good techs in the loop, before processing next period, but
-            #            by doing it this way, we properly capture full set of orphans by period/region
-            #            for later use
-            for period in self.periods:
-                # any orphans need to be removed from all periods where they exist
-                data.available_techs[region, period] -= demand_orphans_this_pass
-                data.available_techs[region, period] -= other_orphans_this_pass
-
-            done = not demand_orphans_this_pass and not other_orphans_this_pass
-            logger.debug(
-                'Finished %d pass(es) on region %s during removal of orphan techs',
-                iter_count,
-                region,
-            )
-            logger.debug(
-                'Removed %d orphans', len(demand_orphans_this_pass) + len(other_orphans_this_pass)
-            )
-            for orphan in sorted(demand_orphans_this_pass):
-                logger.warning('Removed %s as demand-side orphan', orphan)
-            for orphan in sorted(other_orphans_this_pass):
-                logger.warning('Removed %s as other orphan', orphan)
+            # gather orphans...
+            self.demand_orphans[region, period] = cn.get_demand_side_orphans()
+            self.other_orphans[region, period] = cn.get_other_orphans()
 
     def analyze_network(self) -> bool:
         """

@@ -128,9 +128,14 @@ def generate_graph(
     dg = make_nx_graph(all_edges, edge_colors, edge_weights, layers)
 
     # loop finder...
+    MAX_CYCLES = 50 # break after this many cycles to avoid hangs
     try:
         cycles = nx.simple_cycles(G=dg)
+        iter = 0
         for cycle in cycles:
+            iter += 1
+            if iter > MAX_CYCLES:
+                break
             cycle = list(cycle)
             if len(cycle) < 2:  # a storage item--not reportable
                 continue
