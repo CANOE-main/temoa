@@ -502,16 +502,13 @@ class MyopicSequencer:
             raise RuntimeError(msg)
         self.optimization_periods = future_periods.copy()
 
-        last_base_year: int
-        if self.evolving:
-            # view window shrinks towards P_end
-            last_base_year = len(future_periods) - 2
-        else:
-            # shrinking view window is unnecessary as same decisions will be repeated
-            last_base_year = len(future_periods) - self.view_depth - 1
-
-        base_years = list(range(0, last_base_year, self.step_size))
-        base_years.append(last_base_year)
+        last_base_year = ((len(future_periods) - 2) // self.step_size) * self.step_size
+        base_years = list(range(0, last_base_year+1, self.step_size))
+        if not self.evolving:
+            # Remove redundant iterations near end of horizon
+            catch_Pe = [i for i in base_years if i + self.view_depth >= len(future_periods) - 1]
+            if len(catch_Pe) > 1:
+                base_years = list(range(0, catch_Pe[0]+1, self.step_size))
 
         for n, idx in enumerate(base_years):
             depth = min(self.view_depth, len(future_periods) - idx - 1)
