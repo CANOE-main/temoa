@@ -45173,7 +45173,8 @@
         "ETH"
     ],
     "commodity_source": [
-        "ethos"
+        "ethos",
+        "SOL"
     ],
     "commodity_waste": [],
     "operator": [
