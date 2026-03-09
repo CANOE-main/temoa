@@ -119,7 +119,7 @@ INSERT INTO Commodity VALUES('ELC','p','# electricity');
 INSERT INTO Commodity VALUES('HYD','p','# water');
 INSERT INTO Commodity VALUES('co2','e','#CO2 emissions');
 INSERT INTO Commodity VALUES('RL','d','# residential lighting');
-INSERT INTO Commodity VALUES('earth','p','# the source of stuff');
+INSERT INTO Commodity VALUES('earth','s','# the source of stuff');
 CREATE TABLE CommodityType
 (
     label       TEXT

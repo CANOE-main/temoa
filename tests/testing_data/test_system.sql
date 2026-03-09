@@ -201,7 +201,7 @@ INSERT INTO Commodity VALUES('OIL','p','crude oil');
 INSERT INTO Commodity VALUES('NG','p','natural gas');
 INSERT INTO Commodity VALUES('URN','p','uranium');
 INSERT INTO Commodity VALUES('ETH','p','ethanol');
-INSERT INTO Commodity VALUES('SOL','p','solar insolation');
+INSERT INTO Commodity VALUES('SOL','s','solar insolation');
 INSERT INTO Commodity VALUES('GSL','p','gasoline');
 INSERT INTO Commodity VALUES('DSL','p','diesel');
 INSERT INTO Commodity VALUES('ELC','p','electricity');
