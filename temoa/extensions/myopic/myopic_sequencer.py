@@ -225,6 +225,26 @@ class MyopicSequencer:
             # 4. update the MyopicEfficiency table so it is ready for the upcoming data pull.
             self.update_myopic_efficiency_table(myopic_index=idx, prev_base=last_base_year)
 
+            # call the evolution script and pass it the myopic index and last instance status, if evolving is selected
+            if self.evolving:
+                if not self.evolution_script:
+                    logger.info(
+                        'Evolving myopic mode selected, but no evolution script provided.'
+                    )
+                else:
+                    # import the script as a module and call the iterate function with the idx and last_instance_status
+                    import importlib.util
+
+                    spec = importlib.util.spec_from_file_location("evolution_script", self.evolution_script)
+                    evolution_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(evolution_module)
+                    evolution_module.iterate(
+                        idx=idx,
+                        prev_base_year=last_base_year,
+                        last_instance_status=last_instance_status,
+                        db_con=self.output_con,  # pass the db connection so the script can make updates as needed
+                    )
+
             # 5. pull the data
             # make a data loader
             data_loader = HybridLoader(self.output_con, self.config)

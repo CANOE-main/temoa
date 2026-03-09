@@ -1,0 +1,30 @@
+import sqlite3
+from temoa.extensions.myopic.myopic_index import MyopicIndex
+
+def iterate(
+        idx: MyopicIndex | None = None,
+        prev_base_year: int | None = None,
+        last_instance_status: str | None = None,
+        db_con: sqlite3.Connection | None = None,
+    ):
+    """
+    This function is called at the end of each myopic iteration,
+    after the results have been recorded to the myopic database. 
+    You can use it to update your myopic database with any additional
+    information you want to track across iterations, or to implement
+    an evolving myopic approach where the model structure changes
+    across iterations based on some user-defined logic.
+    
+        Parameters:
+        - idx (MyopicIndex): The index object for the current iteration,
+            containing information about the base year, view depth, etc.
+        - prev_base_year (int): The base year of the previous iteration.
+        - last_instance_status (str): The status of the last solved instance
+            (e.g., 'optimal', 'roll_back', etc.)
+        - db_con (sqlite3.Connection): A connection object to the myopic database,
+            which you can use to read/write data as needed.
+    """
+
+    # Update your myopic database here.
+
+    return
