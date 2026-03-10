@@ -122,6 +122,8 @@ class MyopicSequencer:
                         f'is larger than the view depth ({self.view_depth}).  '
                         f'Check config'
                     )
+                self.evolving: bool = myopic_options.get('evolving')
+                self.evolution_script: str = myopic_options.get('evolution_script')
         else:
             # A None was passed for config and the caller is responsible for setting instance vars
             pass
@@ -222,6 +224,26 @@ class MyopicSequencer:
 
             # 4. update the MyopicEfficiency table so it is ready for the upcoming data pull.
             self.update_myopic_efficiency_table(myopic_index=idx, prev_base=last_base_year)
+
+            # call the evolution script and pass it the myopic index and last instance status, if evolving is selected
+            if self.evolving:
+                if not self.evolution_script:
+                    logger.info(
+                        'Evolving myopic mode selected, but no evolution script provided.'
+                    )
+                else:
+                    # import the script as a module and call the iterate function with the idx and last_instance_status
+                    import importlib.util
+
+                    spec = importlib.util.spec_from_file_location("evolution_script", self.evolution_script)
+                    evolution_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(evolution_module)
+                    evolution_module.iterate(
+                        idx=idx,
+                        prev_base_year=last_base_year,
+                        last_instance_status=last_instance_status,
+                        db_con=self.output_con,  # pass the db connection so the script can make updates as needed
+                    )
 
             # 5. pull the data
             # make a data loader
@@ -473,17 +495,40 @@ class MyopicSequencer:
         # check that we have enough periods to do myopic run
         # 2 iterations, excluding end year, will be via shortened depth, if reqd.
         if len(future_periods) < self.view_depth+1:
-            logger.error(
-                'Not enough future years to run myopic mode. Need %d including end year. Got %d.', self.view_depth+1, len(future_periods)
-            )
-            sys.exit(-1)
+            msg = (
+                'Not enough future years to run myopic mode. Need {:d} including end year. Got {:d}.'
+            ).format(self.view_depth+1, len(future_periods))
+            logger.error(msg)
+            raise RuntimeError(msg)
         self.optimization_periods = future_periods.copy()
-        last_idx = len(future_periods) - 1
-        for idx in range(0, len(future_periods[:-1]), self.step_size):
-            depth = min(self.view_depth, last_idx - idx)
-            step = min(self.step_size, last_idx - idx)
+
+        last_base_year = ((len(future_periods) - 2) // self.step_size) * self.step_size
+        base_years = list(range(0, last_base_year+1, self.step_size))
+        if not self.evolving:
+            # Remove redundant iterations near end of horizon
+            catch_Pe = [i for i in base_years if i + self.view_depth >= len(future_periods) - 1]
+            if len(catch_Pe) > 1:
+                base_years = list(range(0, catch_Pe[0]+1, self.step_size))
+
+        for n, idx in enumerate(base_years):
+            depth = min(self.view_depth, len(future_periods) - idx - 1)
+            if idx == base_years[-1]:
+                # last period, record the rest
+                step = depth
+            else:
+                # record to next base year
+                step = base_years[n+1] - idx
+            
             if depth < 1:
-                break
+                msg = (
+                    'Calculated MyopicIndex with non-positive depth.  This should never happen.  Check the logic.  '
+                    'idx: {}, step: {}, depth: {}, future_periods: {}'.format(
+                        idx, step, depth, future_periods
+                    )
+                )
+                logger.error(msg)
+                raise RuntimeError(msg)
+
             myopic_idx = MyopicIndex(
                 base_year=future_periods[idx],
                 step_year=future_periods[idx + step],

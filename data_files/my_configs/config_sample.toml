@@ -132,6 +132,12 @@ weighting = "hull_expansion"  # use a convex hull expansion algorithm to weight 
 [myopic]
 view_depth = 2   # number of periods seen/analyzed per iteration
 step_size = 1    # number of periods to step by (must be <= view depth)
+# Evolution mode: if true, the view depth shortens closer to the end of the horizon and
+# the evolution script is called between iterations. If false, there is no need to 
+# shorten the view depth near end of horizon as the following decisions will be the 
+# same as the final full-depth iteration.
+evolving = false
+evolution_script = "temoa\\extensions\\myopic\\evolution_updater.py"
 
 [morris]
 perturbation = 0.10     # amount to perturb marked parameters (ex:  0.10 -> +/- 10%)

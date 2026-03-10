@@ -33,12 +33,12 @@ from temoa.extensions.myopic.myopic_sequencer import MyopicSequencer
 params = [
     {
         'name': 'single_step',
-        'conf_data': {'step_size': 1, 'view_depth': 3},
+        'conf_data': {'step_size': 1, 'view_depth': 3, 'evolving': True, 'evolution_script': None},
         'expected_steps': 4,
     },  # 4 single steps
     {
         'name': 'triple_step',
-        'conf_data': {'step_size': 3, 'view_depth': 4},
+        'conf_data': {'step_size': 3, 'view_depth': 4, 'evolving': True, 'evolution_script': None},
         'expected_steps': 2,  # 1 step of 3, followed by 1 step of 1
     },
 ]
@@ -67,6 +67,8 @@ def test_characterize_run(param):
     ms = MyopicSequencer(config=None)
     ms.view_depth = param['conf_data']['view_depth']
     ms.step_size = param['conf_data']['step_size']
+    ms.evolving = param['conf_data']['evolving']
+    ms.evolution_script = param['conf_data']['evolution_script']
 
     ms.characterize_run(future_periods=list(range(5)))
     assert len(ms.instance_queue) == param['expected_steps'], (
