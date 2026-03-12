@@ -285,7 +285,7 @@ def _build_from_db(
                     ).fetchall()
                     
                     for _r, _tech, _v, _oc in raw_eol:
-                        techs[_r, p].add(Tech(_r, _tech, 'EndOfLife', _v, _oc))
+                        techs[_r, p].add(Tech(_r, _tech, _tech, _v, _oc))
                         source_dict[_r, p].add(_tech)
                         res.capacity_commodities.add(_tech)
                         living_techs.add(_tech)

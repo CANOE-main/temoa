@@ -101,6 +101,7 @@ class HybridLoader:
         self.viable_rt: ViableSet | None = None
         self.viable_rpit: ViableSet | None = None
         self.viable_rtt: ViableSet | None = None  # to support scanning LinkedTech
+        self.viable_rtv_eol: ViableSet | None = None  # to support scanning EndOfLifeOutput
         self.efficiency_values: list[tuple] = []
 
         # container for loaded data
@@ -175,6 +176,7 @@ class HybridLoader:
             self.viable_rt = filts['rt']
             self.viable_rpit = filts['rpit']
             self.viable_rpto = filts['rpto']
+            self.viable_rtv_eol = filts['rtv_eol']
             self.viable_techs = filts['t']
             self.viable_input_comms = filts['ic']
             self.viable_vintages = filts['v']
@@ -730,6 +732,12 @@ class HybridLoader:
             raw = cur.execute('SELECT region, period, tech, vintage, fraction FROM main.LifetimeSurvivalCurve').fetchall()
             load_element(M.LifetimeSurvivalCurve, raw, self.viable_rtv, val_loc=(0, 2, 3))
 
+        print([
+            (r, i, t, v, o)
+            for r, i, t, v, o in self.viable_ritvo.member_tuples
+            if v > mi.base_year
+        ])
+
         # LoanLifetimeProcess
         if self.table_exists("LoanLifetimeProcess"):
             raw = cur.execute('SELECT region, tech, vintage, lifetime FROM main.LoanLifetimeProcess').fetchall()
@@ -998,7 +1006,7 @@ class HybridLoader:
                 'SELECT region, emis_comm, tech, vintage, value '
                 'FROM main.EmissionEndOfLife'
             ).fetchall()
-            load_element(M.EmissionEndOfLife, raw, self.viable_rtv, (0, 2, 3))
+            load_element(M.EmissionEndOfLife, raw, self.viable_rtv_eol, (0, 1, 2))
         
         # ConstructionInput
         if self.table_exists('ConstructionInput'):
@@ -1022,7 +1030,7 @@ class HybridLoader:
             raw = cur.execute(
                 'SELECT region, tech, vintage, output_comm, value FROM main.EndOfLifeOutput'
             ).fetchall()
-            load_element(M.EndOfLifeOutput, raw, self.viable_rtv, (0, 1, 2))
+            load_element(M.EndOfLifeOutput, raw, self.viable_rtv_eol, (0, 1, 2))
 
         # LinkedTechs
         # Note:  Both of the linked techs must be viable.  As this is non period/vintage
