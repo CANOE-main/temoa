@@ -263,7 +263,6 @@ def CheckEfficiencyIndices(M: 'TemoaModel'):
     #        by checking by REGION and PERIOD...  Each region/period is unique.
     c_physical = set(i for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     c_physical = c_physical | set(i for r, i, t, v in M.ConstructionInput.sparse_iterkeys())
-    techs = set(t for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     c_outputs = set(o for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     c_outputs = c_outputs | set(o for r, t, v, o in M.EndOfLifeOutput.sparse_iterkeys())
     c_physical = c_physical | c_outputs
@@ -279,6 +278,10 @@ def CheckEfficiencyIndices(M: 'TemoaModel'):
         f_msg = msg.format(', '.join(symdiff))
         logger.error(f_msg)
         raise ValueError(f_msg)
+    
+    techs = set(t for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
+    techs = techs | set(t for r, t, v, o in M.EndOfLifeOutput.sparse_iterkeys())
+    techs = techs | set(t for r, i, t, v in M.ConstructionInput.sparse_iterkeys())
 
     symdiff = techs.symmetric_difference(M.tech_all)
     if symdiff:
