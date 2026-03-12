@@ -732,12 +732,6 @@ class HybridLoader:
             raw = cur.execute('SELECT region, period, tech, vintage, fraction FROM main.LifetimeSurvivalCurve').fetchall()
             load_element(M.LifetimeSurvivalCurve, raw, self.viable_rtv, val_loc=(0, 2, 3))
 
-        print([
-            (r, i, t, v, o)
-            for r, i, t, v, o in self.viable_ritvo.member_tuples
-            if v > mi.base_year
-        ])
-
         # LoanLifetimeProcess
         if self.table_exists("LoanLifetimeProcess"):
             raw = cur.execute('SELECT region, tech, vintage, lifetime FROM main.LoanLifetimeProcess').fetchall()
