@@ -299,7 +299,9 @@ def _build_from_db(
     try:
         raw = cur.execute('SELECT region, input_comm, tech, vintage FROM ConstructionInput').fetchall()
         for r, ic, tech, v in raw:
-            techs[r, v].add(Tech(r, ic, 'Construction', v, tech))
+            if v not in periods:
+                continue
+            techs[r, v].add(Tech(r, ic, tech, v, tech))
             demand_dict[r, v].add(tech)
             res.capacity_commodities.add(tech)
             living_techs.add(tech)

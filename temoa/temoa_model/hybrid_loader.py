@@ -977,10 +977,19 @@ class HybridLoader:
 
         # EmissionEmbodied
         if self.table_exists('EmissionEmbodied'):
-            raw = cur.execute(
-                'SELECT region, emis_comm, tech, vintage, value '
-                'FROM main.EmissionEmbodied'
-            ).fetchall()
+            if mi:
+                qry = (
+                    'SELECT region, emis_comm, tech, vintage, value FROM main.EmissionEmbodied'
+                    ' WHERE vintage >= ? AND vintage <= ?'
+                )
+                raw = cur.execute(
+                    qry,
+                    (mi.base_year, mi.last_demand_year),
+                ).fetchall()
+            else:
+                raw = cur.execute(
+                    'SELECT region, emis_comm, tech, vintage, value FROM main.EmissionEmbodied'
+                ).fetchall()
             load_element(M.EmissionEmbodied, raw, self.viable_rtv, (0, 2, 3))
 
         # EmissionEndOfLife
@@ -993,9 +1002,19 @@ class HybridLoader:
         
         # ConstructionInput
         if self.table_exists('ConstructionInput'):
-            raw = cur.execute(
-                'SELECT region, input_comm, tech, vintage, value FROM main.ConstructionInput'
-            ).fetchall()
+            if mi:
+                qry = (
+                    'SELECT region, input_comm, tech, vintage, value FROM main.ConstructionInput'
+                    ' WHERE vintage >= ? AND vintage <= ?'
+                )
+                raw = cur.execute(
+                    qry,
+                    (mi.base_year, mi.last_demand_year),
+                ).fetchall()
+            else:
+                raw = cur.execute(
+                    'SELECT region, input_comm, tech, vintage, value FROM main.ConstructionInput'
+                ).fetchall()
             load_element(M.ConstructionInput, raw, self.viable_rtv, (0, 2, 3))
 
         # EndOfLifeOutput
