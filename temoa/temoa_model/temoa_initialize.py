@@ -950,6 +950,7 @@ def CreateSparseDicts(M: 'TemoaModel'):
         if (r, v, i) not in M.capacityConsumptionTechs:
             M.capacityConsumptionTechs[r, v, i] = set()
         M.capacityConsumptionTechs[r, v, i].add(t)
+        l_used_techs.add(t)
     for r, t, v, o in M.EndOfLifeOutput.sparse_iterkeys():
         if (r, t, v) not in M.retirementPeriods:
             continue # might be running myopic
@@ -958,13 +959,11 @@ def CreateSparseDicts(M: 'TemoaModel'):
             if (r, p, o) not in M.retirementProductionProcesses:
                 M.retirementProductionProcesses[r, p, o] = set()
             M.retirementProductionProcesses[r, p, o].add((t, v))
+        l_used_techs.add(t)
 
     l_unused_techs = M.tech_all - l_used_techs
     if l_unused_techs:
-        msg = (
-            "Notice: '{}' specified as technology, but it is not utilized in "
-            'the Efficiency parameter.\n'
-        )
+        msg = "Notice: '{}' specified as technology, but it is not used"
         for i in sorted(l_unused_techs):
             SE.write(msg.format(i))
 
