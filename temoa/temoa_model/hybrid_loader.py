@@ -1000,7 +1000,7 @@ class HybridLoader:
                 'SELECT region, emis_comm, tech, vintage, value '
                 'FROM main.EmissionEndOfLife'
             ).fetchall()
-            load_element(M.EmissionEndOfLife, raw, self.viable_rtv_eol, (0, 1, 2))
+            load_element(M.EmissionEndOfLife, raw, self.viable_rtv_eol, (0, 2, 3))
         
         # ConstructionInput
         if self.table_exists('ConstructionInput'):
