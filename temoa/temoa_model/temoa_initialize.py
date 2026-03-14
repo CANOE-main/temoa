@@ -808,16 +808,6 @@ def CreateSparseDicts(M: 'TemoaModel'):
             #     l_loan_life = value(M.LoanLifetimeProcess[l_process])
             #     if v + l_loan_life >= p:
             #         M.processLoans[pindex] = True
-            
-            # Get all periods where the process can retire
-            if t not in M.tech_uncap and any((
-                p <= v+l_lifetime < p + value(M.PeriodLength[p]), # natural eol this period
-                t in M.tech_retirement and v < p <= v+l_lifetime - value(M.PeriodLength[p]), # allowed early retirement
-                M.isSurvivalCurveProcess[r, t, v] and v <= p <= v+l_lifetime
-            )):
-                if (r, t, v) not in M.retirementPeriods:
-                    M.retirementPeriods[r, t, v] = set()
-                M.retirementPeriods[r, t, v].add(p)
 
             # if tech is no longer active, don't include it
             if v + l_lifetime <= p:
@@ -944,6 +934,29 @@ def CreateSparseDicts(M: 'TemoaModel'):
     #                         f_msg = msg.format(t1, r1, t, t1, t1, o1, t1)
     #                         logger.error(f_msg)
     #                         raise ValueError(f_msg)
+
+    # Get all periods where processes can retire
+    unique_rtv = {
+        (r, t, v) for r, _i, t, v, _o in M.Efficiency.sparse_iterkeys()
+    } | set(M.ExistingCapacity.sparse_iterkeys())
+    for r, t, v in unique_rtv:
+        if t not in M.tech_all:
+            continue
+        for p in M.time_optimize:
+            lifetime = value(M.LifetimeProcess[r, t, v])
+            if (
+                (p == M.time_optimize.first() and v + lifetime == p) # retires on start of horizon
+                or (
+                    (r, t, v) in M.processPeriods and any((
+                        p <= v+lifetime < p + value(M.PeriodLength[p]), # natural eol this period
+                        t in M.tech_retirement and v < p <= v+lifetime - value(M.PeriodLength[p]), # allowed early retirement
+                        M.isSurvivalCurveProcess[r, t, v] and v <= p <= v+lifetime # survival curve retirement
+                    ))
+                )
+            ):
+                if (r, t, v) not in M.retirementPeriods:
+                    M.retirementPeriods[r, t, v] = set()
+                M.retirementPeriods[r, t, v].add(p)
 
     # Need this here for the commodity balance rpc set
     for r, i, t, v in M.ConstructionInput.sparse_iterkeys():
@@ -1269,6 +1282,8 @@ def CreateSurvivalCurve(M: 'TemoaModel'):
 
     for (r, _, t, v, _) in M.Efficiency.sparse_iterkeys():
         M.isSurvivalCurveProcess[r, t, v] = False # by default
+    for (r, t, v) in M.ExistingCapacity.sparse_iterkeys():
+        M.isSurvivalCurveProcess[r, t, v] = False # by default
 
     # Collect rptv indices into (r, t, v): p dictionary
     for r, p, t, v in M.LifetimeSurvivalCurve.sparse_iterkeys():
@@ -1468,6 +1483,7 @@ Based on the Efficiency parameter's indices, this function returns the set of
 process indices that may be specified in the LifetimeProcess parameter.
 """
     indices = set((r, t, v) for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
+    indices = indices | set(M.ExistingCapacity.sparse_iterkeys())
 
     return indices
 

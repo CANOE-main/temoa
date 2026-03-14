@@ -183,7 +183,7 @@ def _build_from_db(
     tech_retire = {t[0] for t in raw}
     raw = cur.execute('SELECT DISTINCT region, tech, vintage FROM LifetimeSurvivalCurve').fetchall()
     tech_survival_curve = set(raw)
-    raw = cur.execute('SELECT period FROM TimePeriod').fetchall()
+    raw = cur.execute('SELECT period FROM TimePeriod WHERE flag == "f"').fetchall()
     periods = [p[0] for p in sorted(raw)]
     period_length = {periods[i]: periods[i+1] - periods[i] for i in range(len(periods)-1)}
     periods = periods[:-1]
@@ -233,7 +233,7 @@ def _build_from_db(
             '     AND main.MyopicEfficiency.region = main.LifeTimeTech.region '
             '   JOIN TimePeriod '
             '   ON MyopicEfficiency.vintage = TimePeriod.period '
-            # f'   WHERE main.MyopicEfficiency.vintage <= {myopic_index.last_demand_year}'
+            f'   WHERE main.MyopicEfficiency.vintage <= {myopic_index.last_demand_year}'
         )
     raw = cur.execute(query).fetchall()
     # need to exclude the final year which is a non-demand year and should have no tech data
@@ -241,11 +241,12 @@ def _build_from_db(
     
     # filter further if myopic
     if myopic_index:
-        periods = {
+        periods = [
             p for p in periods if myopic_index.base_year <= p <= myopic_index.last_demand_year
-        }
+        ]
     techs = defaultdict(set)
     living_techs = set()  # for screening the linked techs below
+    living_rtv = set()
     # filter out the dead ones...
     for element in raw:
         (r, ic, tech, v, oc, lifetime) = element
@@ -267,33 +268,45 @@ def _build_from_db(
                 else:
                     techs[r, p].add(Tech(r, ic, tech, v, oc))
                     living_techs.add(tech)
+                    living_rtv.add((r, tech, v))
                     if ic in source_comms:
                         source_dict[r, p].add(ic)
                     if oc in waste_comms:
                         waste_dict[r, p].add(oc)
 
-            # End of life output
-            if any((
-                p <= v+lifetime < p + period_length[p], # natural eol this period
-                tech in tech_retire and v < p <= v+lifetime - period_length[p], # allowed early retirement
-                (r, tech, v) in tech_survival_curve and v <= p <= v+lifetime
-            )):
-                try:
-                    raw_eol = cur.execute(
-                        'SELECT region, tech, vintage, output_comm FROM EndOfLifeOutput '
-                        f' WHERE region == "{r}" AND tech == "{tech}" AND vintage == {v}'
-                    ).fetchall()
-                    
-                    for _r, _tech, _v, _oc in raw_eol:
-                        techs[_r, p].add(Tech(_r, _tech, _tech, _v, _oc))
-                        source_dict[_r, p].add(_tech)
-                        res.capacity_commodities.add(_tech)
-                        living_techs.add(_tech)
-                        if _oc in waste_comms:
-                            waste_dict[_r, p].add(_oc)
-                except:
-                    # EndOfLifeOutput table did not exist TODO remove this eventually
-                    pass
+    # End of life output
+    query = (
+        '  SELECT main.EndOfLifeOutput.region, EndOfLifeOutput.tech, EndOfLifeOutput.vintage, EndOfLifeOutput.output_comm,  '
+        f'  coalesce(main.LifetimeProcess.lifetime, main.LifetimeTech.lifetime, {default_lifetime}) AS lifetime '
+        '   FROM main.EndOfLifeOutput '
+        '    LEFT JOIN main.LifetimeProcess '
+        '       ON main.EndOfLifeOutput.tech = LifetimeProcess.tech '
+        '       AND main.EndOfLifeOutput.vintage = LifetimeProcess.vintage '
+        '       AND main.EndOfLifeOutput.region = LifetimeProcess.region '
+        '    LEFT JOIN main.LifetimeTech '
+        '       ON main.EndOfLifeOutput.tech = main.LifetimeTech.tech '
+        '     AND main.EndOfLifeOutput.region = main.LifeTimeTech.region '
+        '   JOIN TimePeriod '
+        '   ON EndOfLifeOutput.vintage = TimePeriod.period '
+    )
+    raw = cur.execute(query).fetchall()
+    for (r, tech, v, oc, lifetime) in raw:
+        for p in periods:
+            if (
+                (p == periods[0] and v + lifetime == p) # retires on start of horizon
+                or (
+                    (r, tech, v) in living_rtv and any((
+                        p <= v+lifetime < p + period_length[p], # natural eol this period
+                        tech in tech_retire and v < p <= v+lifetime - period_length[p], # allowed early retirement
+                        (r, tech, v) in tech_survival_curve and v <= p <= v+lifetime # survival curve retirement
+                    ))
+                )
+            ):
+                techs[r, p].add(Tech(r, tech, tech, v, oc))
+                source_dict[r, p].add(tech)
+                res.capacity_commodities.add(tech)
+                if oc in waste_comms:
+                    waste_dict[r, p].add(oc)
 
     # Construction input
     try:
@@ -304,7 +317,6 @@ def _build_from_db(
             techs[r, v].add(Tech(r, ic, tech, v, tech))
             demand_dict[r, v].add(tech)
             res.capacity_commodities.add(tech)
-            living_techs.add(tech)
     except:
         # ConstructionInput table did not exist TODO remove this eventually
         pass
