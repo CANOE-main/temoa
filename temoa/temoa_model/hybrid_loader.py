@@ -101,6 +101,7 @@ class HybridLoader:
         self.viable_rt: ViableSet | None = None
         self.viable_rpit: ViableSet | None = None
         self.viable_rtt: ViableSet | None = None  # to support scanning LinkedTech
+        self.viable_rtv_eol: ViableSet | None = None  # to support scanning EndOfLifeOutput
         self.efficiency_values: list[tuple] = []
 
         # container for loaded data
@@ -175,6 +176,7 @@ class HybridLoader:
             self.viable_rt = filts['rt']
             self.viable_rpit = filts['rpit']
             self.viable_rpto = filts['rpto']
+            self.viable_rtv_eol = filts['rtv_eol']
             self.viable_techs = filts['t']
             self.viable_input_comms = filts['ic']
             self.viable_vintages = filts['v']
@@ -977,10 +979,19 @@ class HybridLoader:
 
         # EmissionEmbodied
         if self.table_exists('EmissionEmbodied'):
-            raw = cur.execute(
-                'SELECT region, emis_comm, tech, vintage, value '
-                'FROM main.EmissionEmbodied'
-            ).fetchall()
+            if mi:
+                qry = (
+                    'SELECT region, emis_comm, tech, vintage, value FROM main.EmissionEmbodied'
+                    ' WHERE vintage >= ? AND vintage <= ?'
+                )
+                raw = cur.execute(
+                    qry,
+                    (mi.base_year, mi.last_demand_year),
+                ).fetchall()
+            else:
+                raw = cur.execute(
+                    'SELECT region, emis_comm, tech, vintage, value FROM main.EmissionEmbodied'
+                ).fetchall()
             load_element(M.EmissionEmbodied, raw, self.viable_rtv, (0, 2, 3))
 
         # EmissionEndOfLife
@@ -989,13 +1000,23 @@ class HybridLoader:
                 'SELECT region, emis_comm, tech, vintage, value '
                 'FROM main.EmissionEndOfLife'
             ).fetchall()
-            load_element(M.EmissionEndOfLife, raw, self.viable_rtv, (0, 2, 3))
+            load_element(M.EmissionEndOfLife, raw, self.viable_rtv_eol, (0, 2, 3))
         
         # ConstructionInput
         if self.table_exists('ConstructionInput'):
-            raw = cur.execute(
-                'SELECT region, input_comm, tech, vintage, value FROM main.ConstructionInput'
-            ).fetchall()
+            if mi:
+                qry = (
+                    'SELECT region, input_comm, tech, vintage, value FROM main.ConstructionInput'
+                    ' WHERE vintage >= ? AND vintage <= ?'
+                )
+                raw = cur.execute(
+                    qry,
+                    (mi.base_year, mi.last_demand_year),
+                ).fetchall()
+            else:
+                raw = cur.execute(
+                    'SELECT region, input_comm, tech, vintage, value FROM main.ConstructionInput'
+                ).fetchall()
             load_element(M.ConstructionInput, raw, self.viable_rtv, (0, 2, 3))
 
         # EndOfLifeOutput
@@ -1003,7 +1024,7 @@ class HybridLoader:
             raw = cur.execute(
                 'SELECT region, tech, vintage, output_comm, value FROM main.EndOfLifeOutput'
             ).fetchall()
-            load_element(M.EndOfLifeOutput, raw, self.viable_rtv, (0, 1, 2))
+            load_element(M.EndOfLifeOutput, raw, self.viable_rtv_eol, (0, 1, 2))
 
         # LinkedTechs
         # Note:  Both of the linked techs must be viable.  As this is non period/vintage

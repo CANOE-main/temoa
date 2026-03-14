@@ -1,6 +1,6 @@
 # this config is used for testing in test_full_runs.py
 scenario = "test run"
-scenario_mode = "perfect_foresight"
+scenario_mode = "myopic"
 
 input_database = "tests/testing_outputs/materials.sqlite"
 output_database = "tests/testing_outputs/materials.sqlite"
@@ -69,6 +69,8 @@ weight = "integer"   # currently supported: [integer, normalized]
 
 [myopic]
 myopic_view = 2  # number of periods seen at one iteration
+view_depth = 1
+step_size = 1
 
 
 
