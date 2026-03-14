@@ -942,8 +942,8 @@ def CreateSparseDicts(M: 'TemoaModel'):
     for r, t, v in unique_rtv:
         if t not in M.tech_all:
             continue
+        lifetime = value(M.LifetimeProcess[r, t, v])
         for p in M.time_optimize:
-            lifetime = value(M.LifetimeProcess[r, t, v])
             if (
                 (p == M.time_optimize.first() and v + lifetime == p) # retires on start of horizon
                 or (
