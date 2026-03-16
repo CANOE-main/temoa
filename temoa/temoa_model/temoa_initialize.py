@@ -360,6 +360,27 @@ def CheckEfficiencyVariable(M: 'TemoaModel'):
                 )
 
 
+def CheckExistingCapacity(M: 'TemoaModel'):
+    """
+    Check that all existing capacity vintages have a valid lifetime and are properly accounted for in the model.
+    """
+    for r, t, v in M.ExistingCapacity.sparse_iterkeys():
+        cap = value(M.ExistingCapacity[r, t, v])
+        if t not in M.tech_all:
+            continue
+        if cap <= 0:
+            msg = f"Existing capacity {r, t, v} has non-positive capacity {cap}. This entry will be ignored."
+            logger.warning(msg)
+        life = value(M.LifetimeProcess[r, t, v])
+        if (r, t, v) not in M.processPeriods and v + life > M.time_optimize.first():
+            msg = (
+                f"Existing capacity {r, t, v} with lifetime {life} and capacity {cap} should extend into "
+                "future periods but it not in process periods. Was it included in the Efficiency table?"
+            )
+            logger.error(msg)
+            raise ValueError(msg)
+
+
 def CheckCapacityFactorProcess(M: 'TemoaModel'):
 
     count_rptv = dict()
