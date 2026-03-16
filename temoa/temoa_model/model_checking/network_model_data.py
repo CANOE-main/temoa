@@ -279,6 +279,15 @@ def _build_from_db(
                     if oc in waste_comms:
                         waste_dict[r, p].add(oc)
 
+    # ExistingCapacity for checking
+    query = (
+        'SELECT region, tech, vintage, capacity FROM main.ExistingCapacity'
+    )
+    raw = cur.execute(query).fetchall()
+    exs_cap = dict()
+    for r, tech, v, cap in raw:
+        exs_cap[r, tech, v] = cap
+
     # End of life output
     query = (
         '  SELECT main.EndOfLifeOutput.region, EndOfLifeOutput.tech, EndOfLifeOutput.vintage, EndOfLifeOutput.output_comm,  '
@@ -298,6 +307,8 @@ def _build_from_db(
     for (r, tech, v, oc, lifetime) in raw:
         if tech in tech_uncap:
             # No capacity to retire
+            continue
+        if exs_cap.get((r, tech, v), 0) <= 0:
             continue
         for p in periods:
             if (
