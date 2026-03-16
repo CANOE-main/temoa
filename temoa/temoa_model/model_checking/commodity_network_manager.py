@@ -134,6 +134,12 @@ class CommodityNetworkManager:
                 valid_output_commodities.add(tech.oc)
                 valid_vintages.add(tech.vintage)
 
+        for r, p, t, v in self.filtered_data.silent_rptv:
+            valid_rtv.add((r, t, v))
+            valid_rt.add((r, t))
+            valid_t.add(t)
+            valid_vintages.add(v)
+
         filts = {
             'ritvo': ViableSet(
                 elements=valid_ritvo, exception_loc=0, exception_vals=ViableSet.REGION_REGEXES

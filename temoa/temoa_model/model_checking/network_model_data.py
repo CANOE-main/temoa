@@ -65,6 +65,7 @@ class NetworkModelData:
             'available_techs'
         )
         self.available_linked_techs: set[LinkedTech] = kwargs.get('available_linked_techs', set())
+        self.silent_rptv: set[str] = kwargs.get('silent_rptv', set())
         # a catch-all for indicators for techs...growth potential
         # dev note:  this is indexed by tech name, and is blind to vintage.  The intended use is in the
         #            network graph, which is also blind to vintage.  So it is interpreted as "at least one"
@@ -82,6 +83,7 @@ class NetworkModelData:
             all_commodities=self.physical_commodities.copy(),
             available_techs=self.available_techs.copy(),
             available_linked_techs=self.available_linked_techs.copy(),
+            silent_rptv=self.silent_rptv.copy(),
         )
 
     @property
@@ -193,6 +195,7 @@ def _build_from_db(
     res.physical_commodities = {c[0] for c in raw}
     res.capacity_commodities = set()
     res.exchange_commodities = set()
+    res.silent_rptv = set()
     raw = cur.execute("SELECT Commodity.name FROM Commodity WHERE flag LIKE '%w%'").fetchall()
     waste_comms = {c[0] for c in raw}
     waste_dict = defaultdict(set)
@@ -312,6 +315,31 @@ def _build_from_db(
                 res.capacity_commodities.add(tech)
                 if oc in waste_comms:
                     waste_dict[r, p].add(oc)
+
+    # Emission end of life
+    query = (
+        '  SELECT main.EmissionEndOfLife.region, EmissionEndOfLife.tech, EmissionEndOfLife.vintage,  '
+        f'  coalesce(main.LifetimeProcess.lifetime, main.LifetimeTech.lifetime, {default_lifetime}) AS lifetime '
+        '   FROM main.EmissionEndOfLife '
+        '    LEFT JOIN main.LifetimeProcess '
+        '       ON main.EmissionEndOfLife.tech = LifetimeProcess.tech '
+        '       AND main.EmissionEndOfLife.vintage = LifetimeProcess.vintage '
+        '       AND main.EmissionEndOfLife.region = LifetimeProcess.region '
+        '    LEFT JOIN main.LifetimeTech '
+        '       ON main.EmissionEndOfLife.tech = main.LifetimeTech.tech '
+        '     AND main.EmissionEndOfLife.region = main.LifeTimeTech.region '
+        '   JOIN TimePeriod '
+        '   ON EmissionEndOfLife.vintage = TimePeriod.period '
+    )
+    raw = cur.execute(query).fetchall()
+    for (r, tech, v, lifetime) in raw:
+        if tech in tech_uncap:
+            # No capacity to retire
+            continue
+        if exs_cap.get((r, tech, v), 0) <= 0:
+            continue
+        if v + lifetime == periods[0]:
+            res.silent_rptv.add((r, periods[0], tech, v))
 
     # Construction input
     raw = cur.execute('SELECT region, input_comm, tech, vintage FROM ConstructionInput').fetchall()
