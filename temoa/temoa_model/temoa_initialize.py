@@ -282,6 +282,7 @@ def CheckEfficiencyIndices(M: 'TemoaModel'):
     techs = set(t for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     techs = techs | set(t for r, t, v, o in M.EndOfLifeOutput.sparse_iterkeys())
     techs = techs | set(t for r, i, t, v in M.ConstructionInput.sparse_iterkeys())
+    techs = techs | set(t for r, e, t, v in M.EmissionEndOfLife.sparse_iterkeys())
 
     symdiff = techs.symmetric_difference(M.tech_all)
     if symdiff:
@@ -978,6 +979,11 @@ def CreateSparseDicts(M: 'TemoaModel'):
                 M.retirementProductionProcesses[r, p, o] = set()
             M.retirementProductionProcesses[r, p, o].add((t, v))
         l_used_techs.add(t)
+    for r, e, t, v in M.EmissionEndOfLife.sparse_iterkeys():
+        if (r, t, v) not in M.retirementPeriods:
+            continue # might be running myopic
+        l_used_techs.add(t)
+    
 
     l_unused_techs = M.tech_all - l_used_techs
     if l_unused_techs:
