@@ -951,7 +951,11 @@ def CreateSparseDicts(M: 'TemoaModel'):
         lifetime = value(M.LifetimeProcess[r, t, v])
         for p in M.time_optimize:
             if (
-                (p == M.time_optimize.first() and v + lifetime == p) # retires on start of horizon
+                (
+                    value(M.ExistingCapacity[r, t, v]) > 0
+                    and p == M.time_optimize.first()
+                    and v + lifetime == p
+                ) # retires on start of horizon
                 or (
                     (r, t, v) in M.processPeriods and any((
                         p <= v+lifetime < p + value(M.PeriodLength[p]), # natural eol this period
