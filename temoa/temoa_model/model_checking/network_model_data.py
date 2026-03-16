@@ -314,20 +314,16 @@ def _build_from_db(
                     waste_dict[r, p].add(oc)
 
     # Construction input
-    try:
-        raw = cur.execute('SELECT region, input_comm, tech, vintage FROM ConstructionInput').fetchall()
-        for r, ic, tech, v in raw:
-            if tech in tech_uncap:
-                # No capacity to construct
-                continue
-            if v not in periods:
-                continue
-            techs[r, v].add(Tech(r, ic, tech, v, tech))
-            demand_dict[r, v].add(tech)
-            res.capacity_commodities.add(tech)
-    except:
-        # ConstructionInput table did not exist TODO remove this eventually
-        pass
+    raw = cur.execute('SELECT region, input_comm, tech, vintage FROM ConstructionInput').fetchall()
+    for r, ic, tech, v in raw:
+        if tech in tech_uncap:
+            # No capacity to construct
+            continue
+        if v not in periods:
+            continue
+        techs[r, v].add(Tech(r, ic, tech, v, tech))
+        demand_dict[r, v].add(tech)
+        res.capacity_commodities.add(tech)
 
     res.available_techs = techs
     res.demand_commodities = demand_dict
