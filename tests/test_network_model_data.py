@@ -51,6 +51,7 @@ params = [
     {
         'name': 'basic',
         'data': [
+            [], # unlimited capacity techs
             [], # retirement techs
             [], # survival curve techs
             [
@@ -101,6 +102,7 @@ params = [
     {
         'name': 'bad linked tech',
         'data': [
+            [], # unlimited capacity techs
             [], # retirement techs
             [], # survival curve techs
             [
@@ -150,6 +152,7 @@ params = [
         #
         'name': 'good linked tech',
         'data': [
+            [], # unlimited capacity techs
             [], # retirement techs
             [], # survival curve techs
             [

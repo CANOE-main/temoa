@@ -179,6 +179,8 @@ def _build_from_db(
     #            re-use some of the hybrid loader code in a clear way.  Not too much overlap, though
     res = NetworkModelData()
     cur = con.cursor()
+    raw = cur.execute('SELECT tech FROM Technology WHERE unlim_cap==1').fetchall()
+    tech_uncap = {t[0] for t in raw}
     raw = cur.execute('SELECT tech FROM Technology WHERE retire==1').fetchall()
     tech_retire = {t[0] for t in raw}
     raw = cur.execute('SELECT DISTINCT region, tech, vintage FROM LifetimeSurvivalCurve').fetchall()
@@ -291,6 +293,9 @@ def _build_from_db(
     )
     raw = cur.execute(query).fetchall()
     for (r, tech, v, oc, lifetime) in raw:
+        if tech in tech_uncap:
+            # No capacity to retire
+            continue
         for p in periods:
             if (
                 (p == periods[0] and v + lifetime == p) # retires on start of horizon
@@ -312,6 +317,9 @@ def _build_from_db(
     try:
         raw = cur.execute('SELECT region, input_comm, tech, vintage FROM ConstructionInput').fetchall()
         for r, ic, tech, v in raw:
+            if tech in tech_uncap:
+                # No capacity to construct
+                continue
             if v not in periods:
                 continue
             techs[r, v].add(Tech(r, ic, tech, v, tech))
