@@ -89,7 +89,7 @@ def generate_graph(
     }
     cap_edges = {
         (tech.ic, tech.name, tech.oc) for tech in network_data.available_techs[region, period]
-        if tech.name in ('Construction','EndOfLife')
+        if tech.name == tech.ic or tech.name == tech.oc
     }
     exc_edges = {
         (tech.ic, tech.name, tech.oc) for tech in network_data.available_techs[region, period]
