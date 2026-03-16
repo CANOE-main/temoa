@@ -940,7 +940,11 @@ def CreateSparseDicts(M: 'TemoaModel'):
         (r, t, v) for r, _i, t, v, _o in M.Efficiency.sparse_iterkeys()
     } | set(M.ExistingCapacity.sparse_iterkeys())
     for r, t, v in unique_rtv:
+        if t in M.tech_uncap:
+            # No capacity to retire
+            continue
         if t not in M.tech_all:
+            # Not an active technology so wont have a lifetime
             continue
         lifetime = value(M.LifetimeProcess[r, t, v])
         for p in M.time_optimize:
