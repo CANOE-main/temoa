@@ -952,9 +952,9 @@ def CreateSparseDicts(M: 'TemoaModel'):
         for p in M.time_optimize:
             if (
                 (
-                    value(M.ExistingCapacity[r, t, v]) > 0
-                    and p == M.time_optimize.first()
+                    p == M.time_optimize.first()
                     and v + lifetime == p
+                    and value(M.ExistingCapacity[r, t, v]) > 0
                 ) # retires on start of horizon
                 or (
                     (r, t, v) in M.processPeriods and any((
