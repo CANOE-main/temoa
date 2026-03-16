@@ -945,6 +945,7 @@ def CreateSparseDicts(M: 'TemoaModel'):
             continue
         if t not in M.tech_all:
             # Not an active technology so wont have a lifetime
+            # If it has an EOLoutput it will be in tech_all
             continue
         lifetime = value(M.LifetimeProcess[r, t, v])
         for p in M.time_optimize:
