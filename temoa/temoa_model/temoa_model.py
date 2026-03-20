@@ -458,10 +458,10 @@ class TemoaModel(AbstractModel):
         )
         M.LimitSeasonalCapacityFactor = Param(M.LimitSeasonalCapacityFactorConstraint_rpst, validate=validate_0to1)
 
-        M.LimitAnnualCapacityFactorConstraint_rpto = Set(
-            within=M.regionalGlobalIndices * M.time_optimize * M.tech_all * M.commodity_carrier * M.operator
+        M.LimitAnnualCapacityFactorConstraint_rtvo = Set(
+            within=M.regionalGlobalIndices * M.tech_all * M.vintage_all * M.commodity_carrier * M.operator
         )
-        M.LimitAnnualCapacityFactor = Param(M.LimitAnnualCapacityFactorConstraint_rpto, validate=validate_0to1)
+        M.LimitAnnualCapacityFactor = Param(M.LimitAnnualCapacityFactorConstraint_rtvo, validate=validate_0to1)
         
         M.LimitGrowthCapacity = Param(M.regionalGlobalIndices, M.tech_or_group, M.operator, domain=Any)
         M.LimitDegrowthCapacity = Param(M.regionalGlobalIndices, M.tech_or_group, M.operator, domain=Any)
@@ -830,8 +830,11 @@ class TemoaModel(AbstractModel):
             M.LimitResourceConstraint_rt, rule=LimitResource_Constraint
         )
 
+        M.LimitAnnualCapacityFactorConstraint_rptvo = Set(
+            dimen=6, initialize=LimitAnnualCapacityFactorConstraintIndices
+        )
         M.LimitAnnualCapacityFactorConstraint = Constraint(
-            M.LimitAnnualCapacityFactorConstraint_rpto, rule=LimitAnnualCapacityFactor_Constraint
+            M.LimitAnnualCapacityFactorConstraint_rptvo, rule=LimitAnnualCapacityFactor_Constraint
         )
 
         ## Tech input splits

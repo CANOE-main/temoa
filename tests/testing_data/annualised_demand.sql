@@ -525,17 +525,17 @@ CREATE TABLE LimitActivityShare
 CREATE TABLE LimitAnnualCapacityFactor
 (
     region      TEXT,
-    period      INTEGER
-        REFERENCES TimePeriod (period),
     tech        TEXT
         REFERENCES Technology (tech),
+    vintage     INTEGER
+        REFERENCES TimePeriod (period),
     output_comm TEXT
         REFERENCES Commodity (name),
     operator	TEXT  NOT NULL DEFAULT "le"
     	REFERENCES Operator (operator),
     factor      REAL,
     notes       TEXT,
-    PRIMARY KEY (region, period, tech, operator),
+    PRIMARY KEY (region, tech, vintage, operator),
     CHECK (factor >= 0 AND factor <= 1)
 );
 CREATE TABLE LimitCapacity

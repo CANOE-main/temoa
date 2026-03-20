@@ -923,8 +923,19 @@ class HybridLoader:
 
         # LimitAnnualCapacityFactor
         if self.table_exists('LimitAnnualCapacityFactor'):
-            raw = self.raw_check_mi_period(mi, cur=cur, qry='SELECT region, period, tech, output_comm, operator, factor FROM main.LimitAnnualCapacityFactor')
-            load_element(M.LimitAnnualCapacityFactor, raw, self.viable_rpto, (0, 1, 2, 3))
+            if mi:
+                qry = (
+                    'SELECT region, tech, vintage, output_comm, operator, factor FROM main.LimitAnnualCapacityFactor'
+                    ' WHERE vintage >= ? AND vintage <= ?'
+                )
+                raw = cur.execute(
+                    qry,
+                    (mi.base_year, mi.last_demand_year),
+                ).fetchall()
+            else:
+                qry = 'SELECT region, tech, vintage, output_comm, operator, factor FROM main.LimitAnnualCapacityFactor'
+                raw = cur.execute(qry).fetchall()
+            load_element(M.LimitAnnualCapacityFactor, raw, self.viable_rtv, (0, 1, 2))
 
         # LimitGrowthCapacity
         if self.table_exists('LimitGrowthCapacity'):
@@ -1144,7 +1155,7 @@ class HybridLoader:
             M.LimitActivity.name: M.LimitActivityConstraint_rpt.name,
             M.LimitSeasonalCapacityFactor.name: M.LimitSeasonalCapacityFactorConstraint_rpst.name,
             M.LimitActivityShare.name: M.LimitActivityShareConstraint_rpgg.name,
-            M.LimitAnnualCapacityFactor.name: M.LimitAnnualCapacityFactorConstraint_rpto.name,
+            M.LimitAnnualCapacityFactor.name: M.LimitAnnualCapacityFactorConstraint_rtvo.name,
             M.LimitCapacity.name: M.LimitCapacityConstraint_rpt.name,
             M.LimitCapacityShare.name: M.LimitCapacityShareConstraint_rpgg.name,
             M.LimitNewCapacity.name: M.LimitNewCapacityConstraint_rpt.name,

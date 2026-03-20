@@ -2018,6 +2018,17 @@ def LimitDegrowthNewCapacityDeltaIndices(M: 'TemoaModel'):
     return indices
 
 
+def LimitAnnualCapacityFactorConstraintIndices(M: 'TemoaModel'):
+    indices = {
+        (r, p, t, v, o, op)
+        for r, t, v, o, op in M.LimitAnnualCapacityFactorConstraint_rtvo
+        for _r in gather_group_regions(M, r)
+        for p in M.time_optimize
+        if o in M.processOutputs.get((_r, p, t, v), [])
+    }
+    return indices
+
+
 def loop_period_next_timeslice(M: 'TemoaModel', p, s, d) -> tuple[str, str]:
     
     # Final time slice of final season (end of period)

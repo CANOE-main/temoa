@@ -3226,7 +3226,7 @@ def LimitNewCapacityShare_Constraint(M: 'TemoaModel', r, p, g1, g2, op):
     return expr
 
 
-def LimitAnnualCapacityFactor_Constraint(M: 'TemoaModel', r, p, t, o, op):
+def LimitAnnualCapacityFactor_Constraint(M: 'TemoaModel', r, p, t, v, o, op):
     r"""
     The LimitAnnualCapacityFactor sets an upper bound on the annual capacity factor
     from a specific technology. The first portion of the constraint pertains to
@@ -3237,48 +3237,39 @@ def LimitAnnualCapacityFactor_Constraint(M: 'TemoaModel', r, p, t, o, op):
     .. math::
         :label: LimitAnnualCapacityFactor
 
-            \sum_{S,D,I,V,O} \textbf{FO}_{r, p, s, d, i, t, v, o} \le LIMACF_{r, p, t} \cdot \textbf{CAPAVL}_{r, p, t} \cdot \text{C2A}_{r, t}
+            \sum_{S,D,I,O} \textbf{FO}_{r, p, s, d, i, t, v, o} \le LIMACF_{r, t, v, o} \cdot \textbf{CAPAVL}_{r, p, t} \cdot \text{C2A}_{r, t}
             
-            \forall \{r, p, t \notin T^{a}, o\} \in \Theta_{\text{LimitAnnualCapacityFactor}}
+            \forall \{r, t \notin T^{a}, v, o\} \in \Theta_{\text{LimitAnnualCapacityFactor}}
             
-            \\\sum_{I,V,O} \textbf{FOA}_{r, p, i, t, v, o} \ge LIMACF_{r, p, t} \cdot \textbf{CAPAVL}_{r, p, t} \cdot \text{C2A}_{r, t}
+            \\\sum_{I,O} \textbf{FOA}_{r, p, i, t, v, o} \ge LIMACF_{r, t, v, o} \cdot \textbf{CAPAVL}_{r, p, t} \cdot \text{C2A}_{r, t}
             
-            \forall \{r, p, t \in T^{a}, o\} \in \Theta_{\text{LimitAnnualCapacityFactor}}
+            \forall \{r, t \in T^{a}, v, o\} \in \Theta_{\text{LimitAnnualCapacityFactor}}
     """
     # r can be an individual region (r='US'), or a combination of regions separated by plus (r='Mexico+US+Canada'), or 'global'.
     # if r == 'global', the constraint is system-wide
     regions = gather_group_regions(M, r)
-    # we need to screen here because it is possible that the restriction extends beyond the
-    # lifetime of any vintage of the tech...
-    if all(
-        (_r, p, t) not in M.V_CapacityAvailableByPeriodAndTech
-        for _r in regions
-    ):
-        return Constraint.Skip
 
     if t not in M.tech_annual:
-        activity_rpt = sum(
-            M.V_FlowOut[_r, p, s, d, S_i, t, S_v, o]
+        activity_rptv = sum(
+            M.V_FlowOut[_r, p, s, d, S_i, t, v, o]
             for _r in regions
-            for S_v in M.processVintages.get((_r, p, t), [])
-            for S_i in M.processInputs[_r, p, t, S_v]
+            for S_i in M.processInputs.get((_r, p, t, v), [])
             for s in M.TimeSeason[p]
             for d in M.time_of_day
         )
     else:
-        activity_rpt = sum(
-            M.V_FlowOutAnnual[_r, p, S_i, t, S_v, o]
+        activity_rptv = sum(
+            M.V_FlowOutAnnual[_r, p, S_i, t, v, o]
             for _r in regions
-            for S_v in M.processVintages.get((_r, p, t), [])
-            for S_i in M.processInputs[_r, p, t, S_v]
+            for S_i in M.processInputs.get((_r, p, t, v), [])
         )
 
-    possible_activity_rpt = sum(
-        M.V_CapacityAvailableByPeriodAndTech[_r, p, t] * value(M.CapacityToActivity[_r, t])
+    possible_activity_rptv = sum(
+        M.V_Capacity[_r, p, t, v] * value(M.CapacityToActivity[_r, t])
         for _r in regions
     )
-    annual_cf = value(M.LimitAnnualCapacityFactor[r, p, t, o, op])
-    expr = operator_expression(activity_rpt, op, annual_cf * possible_activity_rpt)
+    annual_cf = value(M.LimitAnnualCapacityFactor[r, t, v, o, op])
+    expr = operator_expression(activity_rptv, op, annual_cf * possible_activity_rptv)
     # in the case that there is nothing to sum, skip
     if isinstance(expr, bool):  # an empty list was generated
         return Constraint.Skip
