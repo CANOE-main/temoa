@@ -2241,7 +2241,7 @@ def ReserveMargin_Constraint(M: 'TemoaModel', r, p, s, d):
             if S_o in M.commodity_demand
             else value(M.SegFrac[p, s, d])
         )
-        * M.V_FlowOutAnnual[r, p, s, d, S_i, t, S_v, S_o]
+        * M.V_FlowOutAnnual[r, p, S_i, t, S_v, S_o]
         for (t, S_v) in M.processReservePeriods[r, p]
         if t in M.tech_annual
         for S_i in M.processInputs[r, p, t, S_v]
