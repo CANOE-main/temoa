@@ -426,7 +426,6 @@ CREATE TABLE ExistingCapacity
     notes    TEXT,
     PRIMARY KEY (region, tech, vintage)
 );
-INSERT INTO ExistingCapacity VALUES('A','EH',2020,200.0,'things',NULL);
 CREATE TABLE TechGroup
 (
     group_name TEXT

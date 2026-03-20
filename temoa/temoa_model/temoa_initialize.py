@@ -263,7 +263,6 @@ def CheckEfficiencyIndices(M: 'TemoaModel'):
     #        by checking by REGION and PERIOD...  Each region/period is unique.
     c_physical = set(i for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     c_physical = c_physical | set(i for r, i, t, v in M.ConstructionInput.sparse_iterkeys())
-    techs = set(t for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     c_outputs = set(o for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
     c_outputs = c_outputs | set(o for r, t, v, o in M.EndOfLifeOutput.sparse_iterkeys())
     c_physical = c_physical | c_outputs
@@ -279,6 +278,11 @@ def CheckEfficiencyIndices(M: 'TemoaModel'):
         f_msg = msg.format(', '.join(symdiff))
         logger.error(f_msg)
         raise ValueError(f_msg)
+    
+    techs = set(t for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
+    techs = techs | set(t for r, t, v, o in M.EndOfLifeOutput.sparse_iterkeys())
+    techs = techs | set(t for r, i, t, v in M.ConstructionInput.sparse_iterkeys())
+    techs = techs | set(t for r, e, t, v in M.EmissionEndOfLife.sparse_iterkeys())
 
     symdiff = techs.symmetric_difference(M.tech_all)
     if symdiff:
@@ -354,6 +358,27 @@ def CheckEfficiencyVariable(M: 'TemoaModel'):
                     ' Missing values will default to value set in Efficiency table.'
                     , count, num_seg, (r, p, i, t, v, o)
                 )
+
+
+def CheckExistingCapacity(M: 'TemoaModel'):
+    """
+    Check that all existing capacity vintages have a valid lifetime and are properly accounted for in the model.
+    """
+    for r, t, v in M.ExistingCapacity.sparse_iterkeys():
+        cap = value(M.ExistingCapacity[r, t, v])
+        if t not in M.tech_all:
+            continue
+        if cap <= 0:
+            msg = f"Existing capacity {r, t, v} has non-positive capacity {cap}. This entry will be ignored."
+            logger.warning(msg)
+        life = value(M.LifetimeProcess[r, t, v])
+        if (r, t, v) not in M.processPeriods and v + life > M.time_optimize.first():
+            msg = (
+                f"Existing capacity {r, t, v} with lifetime {life} and capacity {cap} should extend into "
+                "future periods but it not in process periods. Was it included in the Efficiency table?"
+            )
+            logger.error(msg)
+            raise ValueError(msg)
 
 
 def CheckCapacityFactorProcess(M: 'TemoaModel'):
@@ -805,16 +830,6 @@ def CreateSparseDicts(M: 'TemoaModel'):
             #     l_loan_life = value(M.LoanLifetimeProcess[l_process])
             #     if v + l_loan_life >= p:
             #         M.processLoans[pindex] = True
-            
-            # Get all periods where the process can retire
-            if t not in M.tech_uncap and any((
-                p <= v+l_lifetime < p + value(M.PeriodLength[p]), # natural eol this period
-                t in M.tech_retirement and v < p <= v+l_lifetime - value(M.PeriodLength[p]), # allowed early retirement
-                M.isSurvivalCurveProcess[r, t, v] and v <= p <= v+l_lifetime
-            )):
-                if (r, t, v) not in M.retirementPeriods:
-                    M.retirementPeriods[r, t, v] = set()
-                M.retirementPeriods[r, t, v].add(p)
 
             # if tech is no longer active, don't include it
             if v + l_lifetime <= p:
@@ -942,11 +957,44 @@ def CreateSparseDicts(M: 'TemoaModel'):
     #                         logger.error(f_msg)
     #                         raise ValueError(f_msg)
 
+    # Get all periods where processes can retire
+    unique_rtv = {
+        (r, t, v) for r, _i, t, v, _o in M.Efficiency.sparse_iterkeys()
+    } | set(M.ExistingCapacity.sparse_iterkeys())
+    for r, t, v in unique_rtv:
+        if t in M.tech_uncap:
+            # No capacity to retire
+            continue
+        if t not in M.tech_all:
+            # Not an active technology so wont have a lifetime
+            # If it has an EOLoutput it will be in tech_all
+            continue
+        lifetime = value(M.LifetimeProcess[r, t, v])
+        for p in M.time_optimize:
+            if (
+                (
+                    p == M.time_optimize.first()
+                    and v + lifetime == p
+                    and value(M.ExistingCapacity[r, t, v]) > 0
+                ) # retires on start of horizon
+                or (
+                    (r, t, v) in M.processPeriods and any((
+                        p <= v+lifetime < p + value(M.PeriodLength[p]), # natural eol this period
+                        t in M.tech_retirement and v < p <= v+lifetime - value(M.PeriodLength[p]), # allowed early retirement
+                        M.isSurvivalCurveProcess[r, t, v] and v <= p <= v+lifetime # survival curve retirement
+                    ))
+                )
+            ):
+                if (r, t, v) not in M.retirementPeriods:
+                    M.retirementPeriods[r, t, v] = set()
+                M.retirementPeriods[r, t, v].add(p)
+
     # Need this here for the commodity balance rpc set
     for r, i, t, v in M.ConstructionInput.sparse_iterkeys():
         if (r, v, i) not in M.capacityConsumptionTechs:
             M.capacityConsumptionTechs[r, v, i] = set()
         M.capacityConsumptionTechs[r, v, i].add(t)
+        l_used_techs.add(t)
     for r, t, v, o in M.EndOfLifeOutput.sparse_iterkeys():
         if (r, t, v) not in M.retirementPeriods:
             continue # might be running myopic
@@ -955,13 +1003,16 @@ def CreateSparseDicts(M: 'TemoaModel'):
             if (r, p, o) not in M.retirementProductionProcesses:
                 M.retirementProductionProcesses[r, p, o] = set()
             M.retirementProductionProcesses[r, p, o].add((t, v))
+        l_used_techs.add(t)
+    for r, e, t, v in M.EmissionEndOfLife.sparse_iterkeys():
+        if (r, t, v) not in M.retirementPeriods:
+            continue # might be running myopic
+        l_used_techs.add(t)
+    
 
     l_unused_techs = M.tech_all - l_used_techs
     if l_unused_techs:
-        msg = (
-            "Notice: '{}' specified as technology, but it is not utilized in "
-            'the Efficiency parameter.\n'
-        )
+        msg = "Notice: '{}' specified as technology, but it is not used"
         for i in sorted(l_unused_techs):
             SE.write(msg.format(i))
 
@@ -1267,6 +1318,8 @@ def CreateSurvivalCurve(M: 'TemoaModel'):
 
     for (r, _, t, v, _) in M.Efficiency.sparse_iterkeys():
         M.isSurvivalCurveProcess[r, t, v] = False # by default
+    for (r, t, v) in M.ExistingCapacity.sparse_iterkeys():
+        M.isSurvivalCurveProcess[r, t, v] = False # by default
 
     # Collect rptv indices into (r, t, v): p dictionary
     for r, p, t, v in M.LifetimeSurvivalCurve.sparse_iterkeys():
@@ -1466,6 +1519,7 @@ Based on the Efficiency parameter's indices, this function returns the set of
 process indices that may be specified in the LifetimeProcess parameter.
 """
     indices = set((r, t, v) for r, i, t, v, o in M.Efficiency.sparse_iterkeys())
+    indices = indices | set(M.ExistingCapacity.sparse_iterkeys())
 
     return indices
 

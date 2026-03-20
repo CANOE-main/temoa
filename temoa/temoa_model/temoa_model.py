@@ -384,6 +384,7 @@ class TemoaModel(AbstractModel):
         # equations below.
         M.Create_SparseDicts = BuildAction(rule=CreateSparseDicts)
         M.initialize_Demands = BuildAction(rule=CreateDemands)
+        M.validate_ExistingCapacity = BuildAction(rule=CheckExistingCapacity)
 
         M.CapacityFactor_rpsdt = Set(dimen=5, initialize=CapacityFactorTechIndices)
         M.CapacityFactorTech = Param(M.CapacityFactor_rpsdt, default=1, validate=validate_0to1)

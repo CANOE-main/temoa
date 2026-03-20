@@ -99,7 +99,7 @@ def poll_capacity_results(M: TemoaModel, epsilon=1e-5) -> CapData:
     for r, t, v in M.V_NewCapacity.keys():
         if v in M.time_optimize:
             val = value(M.V_NewCapacity[r, t, v])
-            if abs(val) < epsilon:
+            if val < epsilon:
                 continue
             new_cap = (r, t, v, val)
             built.append(new_cap)
@@ -108,7 +108,7 @@ def poll_capacity_results(M: TemoaModel, epsilon=1e-5) -> CapData:
     net = []
     for r, p, t, v in M.V_Capacity.keys():
         val = value(M.V_Capacity[r, p, t, v])
-        if abs(val) < epsilon:
+        if val < epsilon:
             continue
         new_net_cap = (r, p, t, v, val)
         net.append(new_net_cap)
@@ -124,8 +124,8 @@ def poll_capacity_results(M: TemoaModel, epsilon=1e-5) -> CapData:
             if t in M.tech_retirement and v < p <= v + lifetime - value(M.PeriodLength[p]):
                 early = value(M.V_RetiredCapacity[r, p, t, v])
                 eol -= early
-            early = 0 if abs(early) < epsilon else early
-            eol = 0 if abs(eol) < epsilon else eol
+            early = 0 if early < epsilon else early
+            eol = 0 if eol < epsilon else eol
             if early == 0 and eol == 0:
                 continue
             new_retired_cap = (r, p, t, v, eol, early)
@@ -150,7 +150,7 @@ def poll_flow_results(M: TemoaModel, epsilon=1e-5) -> dict[FI, dict[FlowType, fl
     for key in M.V_FlowIn.keys():
         fi = FI(*key)
         flow = value(M.V_FlowIn[fi])
-        if abs(flow) < epsilon:
+        if flow < epsilon:
             continue
         res[fi][FlowType.IN] = flow
         res[fi][FlowType.LOST] = (1 - temoa_rules.get_variable_efficiency(M, *key)) * flow
@@ -159,7 +159,7 @@ def poll_flow_results(M: TemoaModel, epsilon=1e-5) -> dict[FI, dict[FlowType, fl
     for key in M.V_FlowOut.keys():
         fi = FI(*key)
         flow = value(M.V_FlowOut[fi])
-        if abs(flow) < epsilon:
+        if flow < epsilon:
             continue
         res[fi][FlowType.OUT] = flow
 
@@ -172,7 +172,7 @@ def poll_flow_results(M: TemoaModel, epsilon=1e-5) -> dict[FI, dict[FlowType, fl
     for key in M.V_Curtailment.keys():
         fi = FI(*key)
         val = value(M.V_Curtailment[fi])
-        if abs(val) < epsilon:
+        if val < epsilon:
             continue
         res[fi][FlowType.CURTAIL] = val
 
@@ -180,7 +180,7 @@ def poll_flow_results(M: TemoaModel, epsilon=1e-5) -> dict[FI, dict[FlowType, fl
     for key in M.V_Flex.keys():
         fi = FI(*key)
         flow = value(M.V_Flex[fi])
-        if abs(flow) < epsilon:
+        if flow < epsilon:
             continue
         res[fi][FlowType.FLEX] = flow
         res[fi][FlowType.OUT] -= flow
@@ -200,7 +200,7 @@ def poll_flow_results(M: TemoaModel, epsilon=1e-5) -> dict[FI, dict[FlowType, fl
                     distribution = value(M.SegFrac[p, s, d])
                 fi = FI(r, p, s, d, i, t, v, o)
                 flow = value(M.V_FlowOutAnnual[r, p, i, t, v, o]) * distribution
-                if abs(flow) < epsilon:
+                if flow < epsilon:
                     continue
                 res[fi][FlowType.OUT] = flow
                 res[fi][FlowType.IN] = flow / value(M.Efficiency[ritvo(fi)])
@@ -212,7 +212,7 @@ def poll_flow_results(M: TemoaModel, epsilon=1e-5) -> dict[FI, dict[FlowType, fl
             for d in M.time_of_day:
                 fi = FI(r, p, s, d, i, t, v, o)
                 flow = value(M.V_FlexAnnual[r, p, i, t, v, o]) * value(M.SegFrac[p, s, d])
-                if abs(flow) < epsilon:
+                if flow < epsilon:
                     continue
                 res[fi][FlowType.FLEX] = flow
                 res[fi][FlowType.OUT] -= flow
@@ -260,7 +260,7 @@ def poll_storage_level_results(M: TemoaModel, epsilon=1e-5) -> dict[SLI, float]:
             continue
         state = value(M.V_StorageLevel[r, p, s, d, t, v]) / (value(M.SegFracPerSeason[p, s]) * value(M.DaysPerPeriod))
         sli = SLI(r, p, s, d, t, v)
-        if abs(state) < epsilon: state = 0 # still want to know but decimals are ugly
+        if state < epsilon: state = 0 # still want to know but decimals are ugly
         res[sli] = state
 
     for r, p, s_seq, t, v in M.SeasonalStorageLevel_rpstv:
@@ -272,7 +272,7 @@ def poll_storage_level_results(M: TemoaModel, epsilon=1e-5) -> dict[SLI, float]:
         for d in M.time_of_day:
             state = value(M.V_SeasonalStorageLevel[r, p, s_seq, t, v]) + value(M.V_StorageLevel[r, p, s, d, t, v]) * days_adjust
             sli = SLI(r, p, s_seq, d, t, v)
-            if abs(state) < epsilon: state = 0 # still want to know but decimals are ugly
+            if state < epsilon: state = 0 # still want to know but decimals are ugly
             res[sli] = state
 
     return res
@@ -316,7 +316,7 @@ def poll_cost_results(
     for r, t, v in M.CostInvest.sparse_iterkeys():  # Returns only non-zero values
         # gather details...
         cap = value(M.V_NewCapacity[r, t, v])
-        if abs(cap) < epsilon:
+        if cap < epsilon:
             continue
         loan_life = value(LLN[r, t, v])
         loan_rate = value(M.LoanRate[r, t, v])
@@ -374,7 +374,7 @@ def poll_cost_results(
 
     for r, p, t, v in M.CostFixed.sparse_iterkeys():
         cap = value(M.V_Capacity[r, p, t, v])
-        if abs(cap) < epsilon:
+        if cap < epsilon:
             continue
 
         fixed_cost = value(M.CostFixed[r, p, t, v])
@@ -420,7 +420,7 @@ def poll_cost_results(
                 for S_i in M.processInputs[r, p, t, v]
                 for S_o in M.processOutputsByInput[r, p, t, v, S_i]
             )
-        if abs(activity) < epsilon:
+        if activity < epsilon:
             continue
 
         var_cost = value(M.CostVariable[r, p, t, v])

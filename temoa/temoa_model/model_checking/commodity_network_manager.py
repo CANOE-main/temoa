@@ -117,6 +117,7 @@ class CommodityNetworkManager:
         valid_rpit = set()
         valid_rpto = set()
         valid_t = set()
+        valid_rtv_eol = set()
         valid_input_commodities = set()
         valid_output_commodities = set()
         valid_vintages = set()
@@ -128,9 +129,16 @@ class CommodityNetworkManager:
                 valid_rpit.add((tech.region, p, tech.ic, tech.name))
                 valid_rpto.add((tech.region, p, tech.name, tech.oc))
                 valid_t.add(tech.name)
+                valid_rtv_eol.add((tech.region, tech.ic, tech.vintage))
                 valid_input_commodities.add(tech.ic)
                 valid_output_commodities.add(tech.oc)
                 valid_vintages.add(tech.vintage)
+
+        for r, p, t, v in self.filtered_data.silent_rptv:
+            valid_rtv.add((r, t, v))
+            valid_rt.add((r, t))
+            valid_t.add(t)
+            valid_vintages.add(v)
 
         filts = {
             'ritvo': ViableSet(
@@ -148,6 +156,9 @@ class CommodityNetworkManager:
             'v': ViableSet(elements=valid_vintages),
             'ic': ViableSet(elements=valid_input_commodities),
             'oc': ViableSet(elements=valid_output_commodities),
+            'rtv_eol': ViableSet(
+                elements=valid_rtv_eol, exception_loc=0, exception_vals=ViableSet.REGION_REGEXES
+            ),
         }
         return filts
 

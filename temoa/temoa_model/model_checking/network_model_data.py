@@ -65,6 +65,7 @@ class NetworkModelData:
             'available_techs'
         )
         self.available_linked_techs: set[LinkedTech] = kwargs.get('available_linked_techs', set())
+        self.silent_rptv: set[str] = kwargs.get('silent_rptv', set())
         # a catch-all for indicators for techs...growth potential
         # dev note:  this is indexed by tech name, and is blind to vintage.  The intended use is in the
         #            network graph, which is also blind to vintage.  So it is interpreted as "at least one"
@@ -82,6 +83,7 @@ class NetworkModelData:
             all_commodities=self.physical_commodities.copy(),
             available_techs=self.available_techs.copy(),
             available_linked_techs=self.available_linked_techs.copy(),
+            silent_rptv=self.silent_rptv.copy(),
         )
 
     @property
@@ -179,11 +181,13 @@ def _build_from_db(
     #            re-use some of the hybrid loader code in a clear way.  Not too much overlap, though
     res = NetworkModelData()
     cur = con.cursor()
+    raw = cur.execute('SELECT tech FROM Technology WHERE unlim_cap==1').fetchall()
+    tech_uncap = {t[0] for t in raw}
     raw = cur.execute('SELECT tech FROM Technology WHERE retire==1').fetchall()
     tech_retire = {t[0] for t in raw}
     raw = cur.execute('SELECT DISTINCT region, tech, vintage FROM LifetimeSurvivalCurve').fetchall()
     tech_survival_curve = set(raw)
-    raw = cur.execute('SELECT period FROM TimePeriod').fetchall()
+    raw = cur.execute('SELECT period FROM TimePeriod WHERE flag == "f"').fetchall()
     periods = [p[0] for p in sorted(raw)]
     period_length = {periods[i]: periods[i+1] - periods[i] for i in range(len(periods)-1)}
     periods = periods[:-1]
@@ -191,6 +195,7 @@ def _build_from_db(
     res.physical_commodities = {c[0] for c in raw}
     res.capacity_commodities = set()
     res.exchange_commodities = set()
+    res.silent_rptv = set()
     raw = cur.execute("SELECT Commodity.name FROM Commodity WHERE flag LIKE '%w%'").fetchall()
     waste_comms = {c[0] for c in raw}
     waste_dict = defaultdict(set)
@@ -233,7 +238,7 @@ def _build_from_db(
             '     AND main.MyopicEfficiency.region = main.LifeTimeTech.region '
             '   JOIN TimePeriod '
             '   ON MyopicEfficiency.vintage = TimePeriod.period '
-            # f'   WHERE main.MyopicEfficiency.vintage <= {myopic_index.last_demand_year}'
+            f'   WHERE main.MyopicEfficiency.vintage <= {myopic_index.last_demand_year}'
         )
     raw = cur.execute(query).fetchall()
     # need to exclude the final year which is a non-demand year and should have no tech data
@@ -241,11 +246,12 @@ def _build_from_db(
     
     # filter further if myopic
     if myopic_index:
-        periods = {
+        periods = [
             p for p in periods if myopic_index.base_year <= p <= myopic_index.last_demand_year
-        }
+        ]
     techs = defaultdict(set)
     living_techs = set()  # for screening the linked techs below
+    living_rtv = set()
     # filter out the dead ones...
     for element in raw:
         (r, ic, tech, v, oc, lifetime) = element
@@ -267,45 +273,96 @@ def _build_from_db(
                 else:
                     techs[r, p].add(Tech(r, ic, tech, v, oc))
                     living_techs.add(tech)
+                    living_rtv.add((r, tech, v))
                     if ic in source_comms:
                         source_dict[r, p].add(ic)
                     if oc in waste_comms:
                         waste_dict[r, p].add(oc)
 
-            # End of life output
-            if any((
-                p <= v+lifetime < p + period_length[p], # natural eol this period
-                tech in tech_retire and v < p <= v+lifetime - period_length[p], # allowed early retirement
-                (r, tech, v) in tech_survival_curve and v <= p <= v+lifetime
-            )):
-                try:
-                    raw_eol = cur.execute(
-                        'SELECT region, tech, vintage, output_comm FROM EndOfLifeOutput '
-                        f' WHERE region == "{r}" AND tech == "{tech}" AND vintage == {v}'
-                    ).fetchall()
-                    
-                    for _r, _tech, _v, _oc in raw_eol:
-                        techs[_r, p].add(Tech(_r, _tech, 'EndOfLife', _v, _oc))
-                        source_dict[_r, p].add(_tech)
-                        res.capacity_commodities.add(_tech)
-                        living_techs.add(_tech)
-                        if _oc in waste_comms:
-                            waste_dict[_r, p].add(_oc)
-                except:
-                    # EndOfLifeOutput table did not exist TODO remove this eventually
-                    pass
+    # ExistingCapacity for checking
+    query = (
+        'SELECT region, tech, vintage, capacity FROM main.ExistingCapacity'
+    )
+    raw = cur.execute(query).fetchall()
+    exs_cap = dict()
+    for r, tech, v, cap in raw:
+        exs_cap[r, tech, v] = cap
+
+    # End of life output
+    query = (
+        '  SELECT main.EndOfLifeOutput.region, EndOfLifeOutput.tech, EndOfLifeOutput.vintage, EndOfLifeOutput.output_comm,  '
+        f'  coalesce(main.LifetimeProcess.lifetime, main.LifetimeTech.lifetime, {default_lifetime}) AS lifetime '
+        '   FROM main.EndOfLifeOutput '
+        '    LEFT JOIN main.LifetimeProcess '
+        '       ON main.EndOfLifeOutput.tech = LifetimeProcess.tech '
+        '       AND main.EndOfLifeOutput.vintage = LifetimeProcess.vintage '
+        '       AND main.EndOfLifeOutput.region = LifetimeProcess.region '
+        '    LEFT JOIN main.LifetimeTech '
+        '       ON main.EndOfLifeOutput.tech = main.LifetimeTech.tech '
+        '     AND main.EndOfLifeOutput.region = main.LifeTimeTech.region '
+        '   JOIN TimePeriod '
+        '   ON EndOfLifeOutput.vintage = TimePeriod.period '
+    )
+    raw = cur.execute(query).fetchall()
+    for (r, tech, v, oc, lifetime) in raw:
+        if tech in tech_uncap:
+            # No capacity to retire
+            continue
+        if exs_cap.get((r, tech, v), 0) <= 0:
+            continue
+        for p in periods:
+            if (
+                (p == periods[0] and v + lifetime == p) # retires on start of horizon
+                or (
+                    (r, tech, v) in living_rtv and any((
+                        p <= v+lifetime < p + period_length[p], # natural eol this period
+                        tech in tech_retire and v < p <= v+lifetime - period_length[p], # allowed early retirement
+                        (r, tech, v) in tech_survival_curve and v <= p <= v+lifetime # survival curve retirement
+                    ))
+                )
+            ):
+                techs[r, p].add(Tech(r, tech, tech, v, oc))
+                source_dict[r, p].add(tech)
+                res.capacity_commodities.add(tech)
+                if oc in waste_comms:
+                    waste_dict[r, p].add(oc)
+
+    # Emission end of life
+    query = (
+        '  SELECT main.EmissionEndOfLife.region, EmissionEndOfLife.tech, EmissionEndOfLife.vintage,  '
+        f'  coalesce(main.LifetimeProcess.lifetime, main.LifetimeTech.lifetime, {default_lifetime}) AS lifetime '
+        '   FROM main.EmissionEndOfLife '
+        '    LEFT JOIN main.LifetimeProcess '
+        '       ON main.EmissionEndOfLife.tech = LifetimeProcess.tech '
+        '       AND main.EmissionEndOfLife.vintage = LifetimeProcess.vintage '
+        '       AND main.EmissionEndOfLife.region = LifetimeProcess.region '
+        '    LEFT JOIN main.LifetimeTech '
+        '       ON main.EmissionEndOfLife.tech = main.LifetimeTech.tech '
+        '     AND main.EmissionEndOfLife.region = main.LifeTimeTech.region '
+        '   JOIN TimePeriod '
+        '   ON EmissionEndOfLife.vintage = TimePeriod.period '
+    )
+    raw = cur.execute(query).fetchall()
+    for (r, tech, v, lifetime) in raw:
+        if tech in tech_uncap:
+            # No capacity to retire
+            continue
+        if exs_cap.get((r, tech, v), 0) <= 0:
+            continue
+        if v + lifetime == periods[0]:
+            res.silent_rptv.add((r, periods[0], tech, v))
 
     # Construction input
-    try:
-        raw = cur.execute('SELECT region, input_comm, tech, vintage FROM ConstructionInput').fetchall()
-        for r, ic, tech, v in raw:
-            techs[r, v].add(Tech(r, ic, 'Construction', v, tech))
-            demand_dict[r, v].add(tech)
-            res.capacity_commodities.add(tech)
-            living_techs.add(tech)
-    except:
-        # ConstructionInput table did not exist TODO remove this eventually
-        pass
+    raw = cur.execute('SELECT region, input_comm, tech, vintage FROM ConstructionInput').fetchall()
+    for r, ic, tech, v in raw:
+        if tech in tech_uncap:
+            # No capacity to construct
+            continue
+        if v not in periods:
+            continue
+        techs[r, v].add(Tech(r, ic, tech, v, tech))
+        demand_dict[r, v].add(tech)
+        res.capacity_commodities.add(tech)
 
     res.available_techs = techs
     res.demand_commodities = demand_dict
