@@ -308,7 +308,7 @@ def _build_from_db(
         if tech in tech_uncap:
             # No capacity to retire
             continue
-        if exs_cap.get((r, tech, v), 0) <= 0:
+        if v < periods[0] and exs_cap.get((r, tech, v), 0) <= 0:
             continue
         for p in periods:
             if (
@@ -347,7 +347,7 @@ def _build_from_db(
         if tech in tech_uncap:
             # No capacity to retire
             continue
-        if exs_cap.get((r, tech, v), 0) <= 0:
+        if v < periods[0] and exs_cap.get((r, tech, v), 0) <= 0:
             continue
         if v + lifetime == periods[0]:
             res.silent_rptv.add((r, periods[0], tech, v))
