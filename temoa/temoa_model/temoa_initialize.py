@@ -377,8 +377,7 @@ def CheckExistingCapacity(M: 'TemoaModel'):
                 f"Existing capacity {r, t, v} with lifetime {life} and capacity {cap} should extend into "
                 "future periods but it not in process periods. Was it included in the Efficiency table?"
             )
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.warning(msg)
 
 
 def CheckCapacityFactorProcess(M: 'TemoaModel'):
