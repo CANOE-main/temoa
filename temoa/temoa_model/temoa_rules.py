@@ -3011,6 +3011,7 @@ def LimitNewCapacity_Constraint(M: 'TemoaModel', r, p, t, op):
         M.V_NewCapacity[_r, _t, p]
         for _t in techs
         for _r in regions
+        if (_r, _t, p) in M.processPeriods
     )
     expr = operator_expression(new_cap, op, cap_lim)
     return expr
@@ -3036,6 +3037,7 @@ def LimitCapacity_Constraint(M: 'TemoaModel', r, p, t, op):
         M.V_CapacityAvailableByPeriodAndTech[_r, p, _t]
         for _t in techs
         for _r in regions
+        if (_r, _t) in M.processTechs
     )
     expr = operator_expression(capacity, op, cap_lim)
     return expr
@@ -3267,6 +3269,7 @@ def LimitAnnualCapacityFactor_Constraint(M: 'TemoaModel', r, p, t, v, o, op):
     possible_activity_rptv = sum(
         M.V_Capacity[_r, p, t, v] * value(M.CapacityToActivity[_r, t])
         for _r in regions
+        if (_r, p, t, v) in M.activeCapacityAvailable_rptv
     )
     annual_cf = value(M.LimitAnnualCapacityFactor[r, t, v, o, op])
     expr = operator_expression(activity_rptv, op, annual_cf * possible_activity_rptv)
@@ -3329,6 +3332,7 @@ def LimitSeasonalCapacityFactor_Constraint(M: 'TemoaModel', r, p, s, t, op):
         * value(M.CapacityToActivity[_r, t])
         * value(M.SegFracPerSeason[p, s])
         for _r in regions
+        if (_r, p, t) in M.activeCapacityAvailable_rpt
     )
     seasonal_cf = value(M.LimitSeasonalCapacityFactor[r, p, s, t, op])
     expr = operator_expression(activity_rpst, op, seasonal_cf * possible_activity_rpst)
