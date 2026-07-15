@@ -926,11 +926,11 @@ class HybridLoader:
             if mi:
                 qry = (
                     'SELECT region, tech, vintage, output_comm, operator, factor FROM main.LimitAnnualCapacityFactor'
-                    ' WHERE vintage >= ? AND vintage <= ?'
+                    ' WHERE vintage <= ?'
                 )
                 raw = cur.execute(
                     qry,
-                    (mi.base_year, mi.last_demand_year),
+                    (mi.last_demand_year,),
                 ).fetchall()
             else:
                 qry = 'SELECT region, tech, vintage, output_comm, operator, factor FROM main.LimitAnnualCapacityFactor'

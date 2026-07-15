@@ -3255,7 +3255,7 @@ def LimitAnnualCapacityFactor_Constraint(M: 'TemoaModel', r, p, t, v, o, op):
         activity_rptv = sum(
             M.V_FlowOut[_r, p, s, d, S_i, t, v, o]
             for _r in regions
-            for S_i in M.processInputs.get((_r, p, t, v), [])
+            for S_i in M.processInputsByOutput.get((_r, p, t, v, o), [])
             for s in M.TimeSeason[p]
             for d in M.time_of_day
         )
@@ -3263,7 +3263,7 @@ def LimitAnnualCapacityFactor_Constraint(M: 'TemoaModel', r, p, t, v, o, op):
         activity_rptv = sum(
             M.V_FlowOutAnnual[_r, p, S_i, t, v, o]
             for _r in regions
-            for S_i in M.processInputs.get((_r, p, t, v), [])
+            for S_i in M.processInputsByOutput.get((_r, p, t, v, o), [])
         )
 
     possible_activity_rptv = sum(
