@@ -2040,7 +2040,12 @@ def RampUpDay_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
         return Constraint.Skip
 
     activity_increase = hourly_activity_sd_next - hourly_activity_sd # opposite sign from rampdown
-    rampable_activity = ramp_fraction * M.V_Capacity[r, p, t, v] * value(M.CapacityToActivity[r, t])
+    rampable_activity = (
+        ramp_fraction
+        * M.V_Capacity[r, p, t, v]
+        * value(M.CapacityToActivity[r, t])
+        / (24 * value(M.DaysPerPeriod))  # adjust capacity to hourly basis
+    )
     expr = activity_increase <= rampable_activity
 
     return expr
@@ -2105,7 +2110,12 @@ def RampDownDay_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
         return Constraint.Skip
 
     activity_decrease = hourly_activity_sd - hourly_activity_sd_next # opposite sign from rampup
-    rampable_activity = ramp_fraction * M.V_Capacity[r, p, t, v] * value(M.CapacityToActivity[r, t])
+    rampable_activity = (
+        ramp_fraction
+        * M.V_Capacity[r, p, t, v]
+        * value(M.CapacityToActivity[r, t])
+        / (24 * value(M.DaysPerPeriod))  # adjust capacity to hourly basis
+    )
     expr = activity_decrease <= rampable_activity
 
     return expr
@@ -2125,6 +2135,9 @@ def RampUpSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
 
     # How many hours does this time slice represent
     hours_adjust = value(M.SegFrac[p, s, d]) * value(M.DaysPerPeriod) * 24
+    hours_adjust_next = (
+        value(M.SegFrac[p, s_next, d_next]) * value(M.DaysPerPeriod) * 24
+    )
 
     hourly_activity_sd = sum(
         M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
@@ -2136,7 +2149,7 @@ def RampUpSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
         M.V_FlowOut[r, p, s_next, d_next, S_i, t, v, S_o]
         for S_i in M.processInputs[r, p, t, v]
         for S_o in M.processOutputsByInput[r, p, t, v, S_i]
-    ) / hours_adjust
+    ) / hours_adjust_next
 
     # elapsed hours from middle of this time slice to middle of next time slice
     hours_elapsed = 24 / 2 * (
@@ -2154,7 +2167,12 @@ def RampUpSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
         return Constraint.Skip
 
     activity_increase = hourly_activity_sd_next - hourly_activity_sd # opposite sign from rampdown
-    rampable_activity = ramp_fraction * M.V_Capacity[r, p, t, v] * value(M.CapacityToActivity[r, t])
+    rampable_activity = (
+        ramp_fraction
+        * M.V_Capacity[r, p, t, v]
+        * value(M.CapacityToActivity[r, t])
+        / (24 * value(M.DaysPerPeriod))  # adjust capacity to hourly basis
+    )
     expr = activity_increase <= rampable_activity
     
     return expr
@@ -2174,6 +2192,9 @@ def RampDownSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
 
     # How many hours does this time slice represent
     hours_adjust = value(M.SegFrac[p, s, d]) * value(M.DaysPerPeriod) * 24
+    hours_adjust_next = (
+        value(M.SegFrac[p, s_next, d_next]) * value(M.DaysPerPeriod) * 24
+    )
 
     hourly_activity_sd = sum(
         M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
@@ -2185,7 +2206,7 @@ def RampDownSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
         M.V_FlowOut[r, p, s_next, d_next, S_i, t, v, S_o]
         for S_i in M.processInputs[r, p, t, v]
         for S_o in M.processOutputsByInput[r, p, t, v, S_i]
-    ) / hours_adjust
+    ) / hours_adjust_next
 
     # elapsed hours from middle of this time slice to middle of next time slice
     hours_elapsed = 24 / 2 * (
@@ -2203,7 +2224,12 @@ def RampDownSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
         return Constraint.Skip
 
     activity_decrease = hourly_activity_sd - hourly_activity_sd_next # opposite sign from rampup
-    rampable_activity = ramp_fraction * M.V_Capacity[r, p, t, v] * value(M.CapacityToActivity[r, t])
+    rampable_activity = (
+        ramp_fraction
+        * M.V_Capacity[r, p, t, v]
+        * value(M.CapacityToActivity[r, t])
+        / (24 * value(M.DaysPerPeriod))  # adjust capacity to hourly basis
+    )
     expr = activity_decrease <= rampable_activity
     
     return expr
@@ -2457,21 +2483,25 @@ def ReserveMarginDynamic(M: 'TemoaModel', r, p, s, d):
             continue
         r1, r2 = r1r2.split('-')
 
-        # Only consider the capacity of technologies that import to
-        # the region in question -- i.e. for cases where r2 == r.
-        if r2 != r:
-            continue
-
-        # add the available output of the exchange tech.
-        available += sum(
+        output = sum(
             M.V_Capacity[r1r2, p, t, v]
-            * value(M.ReserveCapacityDerate[r, p, s, t, v])
-            * value(M.CapacityFactorProcess[r, p, s, d, t, v])
+            * value(M.ReserveCapacityDerate[r1r2, p, s, t, v])
+            * value(M.CapacityFactorProcess[r1r2, p, s, d, t, v])
             * value(M.CapacityToActivity[r1r2, t])
             * value(M.SegFrac[p, s, d])
             for (t, v) in M.processReservePeriods[r1r2, p]
             for t in M.tech_reserve
         )
+
+        # Only consider exchange technologies connecting to this region
+        if r2 == r:
+            # Add the firm capacity commitment TO this region
+            # (this region was guaranteed an import of power)
+            available += output
+        elif r1 == r:
+            # Subtract the firm capacity commitment FROM this region
+            # (this region guaranteed an export of power)
+            available -= output
 
     return available
 
