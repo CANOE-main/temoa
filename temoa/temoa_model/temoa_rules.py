@@ -2040,7 +2040,12 @@ def RampUpDay_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
         return Constraint.Skip
 
     activity_increase = hourly_activity_sd_next - hourly_activity_sd # opposite sign from rampdown
-    rampable_activity = ramp_fraction * M.V_Capacity[r, p, t, v] * value(M.CapacityToActivity[r, t])
+    rampable_activity = (
+        ramp_fraction
+        * M.V_Capacity[r, p, t, v]
+        * value(M.CapacityToActivity[r, t])
+        / (24 * value(M.DaysPerPeriod))  # adjust capacity to hourly basis
+    )
     expr = activity_increase <= rampable_activity
 
     return expr
@@ -2105,7 +2110,12 @@ def RampDownDay_Constraint(M: 'TemoaModel', r, p, s, d, t, v):
         return Constraint.Skip
 
     activity_decrease = hourly_activity_sd - hourly_activity_sd_next # opposite sign from rampup
-    rampable_activity = ramp_fraction * M.V_Capacity[r, p, t, v] * value(M.CapacityToActivity[r, t])
+    rampable_activity = (
+        ramp_fraction
+        * M.V_Capacity[r, p, t, v]
+        * value(M.CapacityToActivity[r, t])
+        / (24 * value(M.DaysPerPeriod))  # adjust capacity to hourly basis
+    )
     expr = activity_decrease <= rampable_activity
 
     return expr
@@ -2125,6 +2135,9 @@ def RampUpSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
 
     # How many hours does this time slice represent
     hours_adjust = value(M.SegFrac[p, s, d]) * value(M.DaysPerPeriod) * 24
+    hours_adjust_next = (
+        value(M.SegFrac[p, s_next, d_next]) * value(M.DaysPerPeriod) * 24
+    )
 
     hourly_activity_sd = sum(
         M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
@@ -2136,7 +2149,7 @@ def RampUpSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
         M.V_FlowOut[r, p, s_next, d_next, S_i, t, v, S_o]
         for S_i in M.processInputs[r, p, t, v]
         for S_o in M.processOutputsByInput[r, p, t, v, S_i]
-    ) / hours_adjust
+    ) / hours_adjust_next
 
     # elapsed hours from middle of this time slice to middle of next time slice
     hours_elapsed = 24 / 2 * (
@@ -2154,7 +2167,12 @@ def RampUpSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
         return Constraint.Skip
 
     activity_increase = hourly_activity_sd_next - hourly_activity_sd # opposite sign from rampdown
-    rampable_activity = ramp_fraction * M.V_Capacity[r, p, t, v] * value(M.CapacityToActivity[r, t])
+    rampable_activity = (
+        ramp_fraction
+        * M.V_Capacity[r, p, t, v]
+        * value(M.CapacityToActivity[r, t])
+        / (24 * value(M.DaysPerPeriod))  # adjust capacity to hourly basis
+    )
     expr = activity_increase <= rampable_activity
     
     return expr
@@ -2174,6 +2192,9 @@ def RampDownSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
 
     # How many hours does this time slice represent
     hours_adjust = value(M.SegFrac[p, s, d]) * value(M.DaysPerPeriod) * 24
+    hours_adjust_next = (
+        value(M.SegFrac[p, s_next, d_next]) * value(M.DaysPerPeriod) * 24
+    )
 
     hourly_activity_sd = sum(
         M.V_FlowOut[r, p, s, d, S_i, t, v, S_o]
@@ -2185,7 +2206,7 @@ def RampDownSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
         M.V_FlowOut[r, p, s_next, d_next, S_i, t, v, S_o]
         for S_i in M.processInputs[r, p, t, v]
         for S_o in M.processOutputsByInput[r, p, t, v, S_i]
-    ) / hours_adjust
+    ) / hours_adjust_next
 
     # elapsed hours from middle of this time slice to middle of next time slice
     hours_elapsed = 24 / 2 * (
@@ -2203,7 +2224,12 @@ def RampDownSeason_Constraint(M: 'TemoaModel', r, p, s, s_next, t, v):
         return Constraint.Skip
 
     activity_decrease = hourly_activity_sd - hourly_activity_sd_next # opposite sign from rampup
-    rampable_activity = ramp_fraction * M.V_Capacity[r, p, t, v] * value(M.CapacityToActivity[r, t])
+    rampable_activity = (
+        ramp_fraction
+        * M.V_Capacity[r, p, t, v]
+        * value(M.CapacityToActivity[r, t])
+        / (24 * value(M.DaysPerPeriod))  # adjust capacity to hourly basis
+    )
     expr = activity_decrease <= rampable_activity
     
     return expr
