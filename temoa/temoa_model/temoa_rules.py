@@ -754,7 +754,10 @@ def fixed_or_variable_cost(
 def PeriodCost_rule(M: 'TemoaModel', p):
     P_0 = min(M.time_optimize)
     P_e = M.time_future.last()  # End point of modeled horizon
-    GDR = value(M.GlobalDiscountRate)
+    if p >= 2050:
+        GDR = 0.0
+    else:
+        GDR = value(M.GlobalDiscountRate)
     # MPL = M.ModelProcessLife
 
     if value(M.MyopicDiscountingYear) != 0:
@@ -936,6 +939,9 @@ def PeriodCost_rule(M: 'TemoaModel', p):
     period_costs = (
         loan_costs + fixed_costs + variable_costs + variable_costs_annual + period_emission_cost
     )
+
+    if p >= 2050:
+        period_costs *= fv_to_pv(value(M.GlobalDiscountRate), p - P_0)
     return period_costs
 
 
@@ -3629,6 +3635,8 @@ def ParamProcessLifeFraction_rule(M: 'TemoaModel', r, p, t, v):
 
 def ParamLoanAnnualize_rule(M: 'TemoaModel', r, t, v):
     dr = value(M.LoanRate[r, t, v])
+    if v >= 2050:
+        dr = 0.0
     lln = value(M.LoanLifetimeProcess[r, t, v])
     annualized_rate = pv_to_annuity(dr, lln)
     return annualized_rate

@@ -60,7 +60,7 @@ class TemoaModel(AbstractModel):
     """
 
     # this is used in several places outside this class, and this provides no-build access to it
-    default_lifetime_tech = 40
+    default_lifetime_tech = 100
 
     def __init__(M, *args, **kwargs):
         AbstractModel.__init__(M, *args, **kwargs)
