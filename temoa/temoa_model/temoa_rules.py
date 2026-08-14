@@ -2385,7 +2385,6 @@ def ReserveMarginStatic(M: 'TemoaModel', r, p, s, d):
             * value(M.CapacityToActivity[r1r2, t])
             * value(M.SegFrac[p, s, d])
             for (t, v) in M.processReservePeriods[r1r2, p]
-            for t in M.tech_reserve
         )
 
     return available
@@ -2490,7 +2489,6 @@ def ReserveMarginDynamic(M: 'TemoaModel', r, p, s, d):
             * value(M.CapacityToActivity[r1r2, t])
             * value(M.SegFrac[p, s, d])
             for (t, v) in M.processReservePeriods[r1r2, p]
-            for t in M.tech_reserve
         )
 
         # Only consider exchange technologies connecting to this region
