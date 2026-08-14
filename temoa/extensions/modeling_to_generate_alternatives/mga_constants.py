@@ -36,9 +36,11 @@ class MgaAxis(Enum):
     TECH_CATEGORY_CAPACITY = 2
     TECH_CATEGORY_ACTIVITY = 3
     EMISSION_ACTIVITY = 4
+    COST_INVEST = 5
 
 
 @enum.unique
 class MgaWeighting(Enum):
     HULL_EXPANSION = 1
-    UNUSED_STUFF = 2
+    RANDOM = 2
+    UNUSED_STUFF = 3

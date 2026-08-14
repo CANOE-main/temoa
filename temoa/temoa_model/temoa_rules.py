@@ -749,34 +749,23 @@ def fixed_or_variable_cost(
             * annuity_to_pv(GDR, cost_years)    # PV of annual costs over this period, discounted to period p
             * fv_to_pv(GDR, p - P_0)            # discounted from p to p_0
         )
+    
 
+def get_loan_cost(M: 'TemoaModel', r, S_t, S_v, P_0, GDR):
+    """
+    Get the loan cost for a given process (r, S_t, S_v) in the model M.
+    This function is a wrapper around the loan_cost and loan_cost_survival_curve functions,
+    and it determines which one to use based on whether the process uses a survival curve.
 
-def PeriodCost_rule(M: 'TemoaModel', p):
-    P_0 = min(M.time_optimize)
-    P_e = M.time_future.last()  # End point of modeled horizon
-    GDR = value(M.GlobalDiscountRate)
-    # MPL = M.ModelProcessLife
+    :param M: The TemoaModel instance
+    :param r: The region
+    :param S_t: The technology
+    :param S_v: The vintage year
+    :return: The loan cost for the given process
+    """
 
-    if value(M.MyopicDiscountingYear) != 0:
-        P_0 = value(M.MyopicDiscountingYear)
-
-    loan_costs = sum(
-        loan_cost(
-            M.V_NewCapacity[r, S_t, S_v],
-            value(M.CostInvest[r, S_t, S_v]),
-            value(M.LoanAnnualize[r, S_t, S_v]),
-            value(M.LoanLifetimeProcess[r, S_t, S_v]),
-            value(M.LifetimeProcess[r, S_t, S_v]),
-            P_0,
-            P_e,
-            GDR,
-            vintage=S_v,
-        )
-        for r, S_t, S_v in M.CostInvest.sparse_iterkeys()
-        if S_v == p and not M.isSurvivalCurveProcess[r, S_t, S_v]
-    )
-    loan_costs += sum(
-        loan_cost_survival_curve(
+    if M.isSurvivalCurveProcess[r, S_t, S_v]:
+        return loan_cost_survival_curve(
             M,
             r,
             S_t,
@@ -786,11 +775,34 @@ def PeriodCost_rule(M: 'TemoaModel', p):
             value(M.LoanAnnualize[r, S_t, S_v]),
             value(M.LoanLifetimeProcess[r, S_t, S_v]),
             P_0,
-            P_e,
+            M.time_future.last(),
             GDR,
         )
+    else:
+        return loan_cost(
+            M.V_NewCapacity[r, S_t, S_v],
+            value(M.CostInvest[r, S_t, S_v]),
+            value(M.LoanAnnualize[r, S_t, S_v]),
+            value(M.LoanLifetimeProcess[r, S_t, S_v]),
+            value(M.LifetimeProcess[r, S_t, S_v]),
+            P_0,
+            M.time_future.last(),
+            GDR,
+            vintage=S_v,
+        )
+
+
+def PeriodCost_rule(M: 'TemoaModel', p):
+    P_0 = min(M.time_optimize)
+    GDR = value(M.GlobalDiscountRate)
+
+    if value(M.MyopicDiscountingYear) != 0:
+        P_0 = value(M.MyopicDiscountingYear)
+
+    loan_costs = sum(
+        get_loan_cost(M, r, S_t, S_v, P_0, GDR)
         for r, S_t, S_v in M.CostInvest.sparse_iterkeys()
-        if S_v == p and M.isSurvivalCurveProcess[r, S_t, S_v]
+        if S_v == p
     )
 
     fixed_costs = sum(

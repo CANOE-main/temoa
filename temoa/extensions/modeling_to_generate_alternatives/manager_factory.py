@@ -31,6 +31,9 @@ from temoa.extensions.modeling_to_generate_alternatives.mga_constants import Mga
 from temoa.extensions.modeling_to_generate_alternatives.tech_activity_vector_manager import (
     TechActivityVectorManager,
 )
+from temoa.extensions.modeling_to_generate_alternatives.cost_invest_vector_manager import (
+    CostInvestVectorManager,
+)
 from temoa.extensions.modeling_to_generate_alternatives.vector_manager import VectorManager
 from temoa.temoa_model.temoa_model import TemoaModel
 
@@ -39,6 +42,7 @@ def get_manager(
     axis: MgaAxis,
     weighting: MgaWeighting,
     model: TemoaModel,
+    mga_config: dict,
     con: sqlite3.Connection | None,
     **kwargs,
 ) -> VectorManager:
@@ -50,6 +54,18 @@ def get_manager(
                 )
             return TechActivityVectorManager(
                 base_model=model, conn=con, weighting=weighting, **kwargs
+            )
+        case MgaAxis.COST_INVEST:
+            if weighting not in (MgaWeighting.HULL_EXPANSION, MgaWeighting.RANDOM):
+                raise NotImplementedError(
+                    f'COST_INVEST not implemented for {str(weighting)}'
+                )
+            return CostInvestVectorManager(
+                base_model=model,
+                conn=con,
+                weighting=weighting,
+                mga_config=mga_config,
+                **kwargs
             )
         case _:
             raise NotImplementedError('This axis is not yet supported')

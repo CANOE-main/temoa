@@ -115,8 +115,18 @@ class MgaSequencer:
             self.mga_weighting = MgaWeighting[weighting_label]
             logger.info('MGA weighting set to %s', self.mga_weighting.name)
         except KeyError:
-            logger.warning('No/bad MGA Weighting specified.  Using default: Hull Expansion')
+            logger.warning('No/bad MGA Weighting specified.  Using default: random vectors')
             self.mga_weighting = MgaWeighting.HULL_EXPANSION
+        # Just for logging
+        self.include_min_bases = config.mga_inputs.get('include_min_bases', True)
+        if self.include_min_bases:
+            logger.info('Including MGA minimisation basis vectors.')
+        self.include_max_bases = config.mga_inputs.get('include_max_bases', True)
+        if self.include_max_bases:
+            logger.info('Including MGA maximisation basis vectors.')
+        self.track_hull_volume = config.mga_inputs.get('track_hull_volume', True)
+        if self.track_hull_volume:
+            logger.info('Plotting convex hull volume for convergence.')
         self.num_workers = all_options.get('num_workers', 1)
         logger.info('MGA workers are set to %s', self.num_workers)
         self.iteration_limit = config.mga_inputs.get('iteration_limit', 20)
@@ -204,6 +214,7 @@ class MgaSequencer:
             axis=self.mga_axis,
             model=instance,
             weighting=self.mga_weighting,
+            mga_config=self.config.mga_inputs,
             con=self.con,
             optimal_cost=tot_cost,
             cost_relaxation=self.cost_epsilon,

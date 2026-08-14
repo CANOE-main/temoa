@@ -10,13 +10,13 @@
 # Scenario Name (Mandatory)
 # This scenario name is used to label results within the output .sqlite file
 # (cannot contain "-" dash)
-scenario = "zulu"
+scenario = "mga"
 
 # Scenaio Mode (Mandatory)
 # See documentation for explanations.  A standard single run is "perfect_foresight"
 # mode must be one of (case-insensitive):
 #     [perfect_foresight, MGA, myopic, method_of_morris, build_only, check, monte_carlo]
-scenario_mode = "perfect_foresight"
+scenario_mode = "MGA"
 
 # Input database (Mandatory)
 input_database = "data_files/example_dbs/utopia.sqlite"
@@ -124,10 +124,14 @@ reserve_margin = 'dynamic'
 [MGA]
 # see notes on these in the extensions/modeling_to_generate_alternatives folder readme.txt
 cost_epsilon = 0.03    # propotional relaxation on optimal cost (ex: 0.05 = bound at 105% of original optimal cost)
-iteration_limit = 55   # max iterations to perform
+iteration_limit = 10   # max iterations to perform
 time_limit_hrs = 1     # max time
-axis = "tech_category_activity"   # use the tech activity Manager to control exploration based on categories in Tech
-weighting = "hull_expansion"  # use a convex hull expansion algorithm to weight exploration
+axis = "cost_invest"   # use the tech activity Manager to control exploration based on categories in Tech
+weighting = "random"  # use random vectors
+include_min_bases = true # minimise each category by itself? These runs can be unstable due to infinite optimal solutions
+include_max_bases = true # maximise each category by itself?
+track_hull_volume = false # should we plot the hull volume for convergence? Does not scale well to ~ >5 categories
+random_vectors_file = 'mga_vectors.csv' # csv file to cache random vector coefficients in
 
 [myopic]
 view_depth = 2   # number of periods seen/analyzed per iteration
