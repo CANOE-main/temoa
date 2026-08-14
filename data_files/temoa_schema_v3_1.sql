@@ -682,6 +682,18 @@ CREATE TABLE IF NOT EXISTS LimitEmission
     notes     TEXT,
     PRIMARY KEY (region, period, emis_comm, operator)
 );
+CREATE TABLE LimitEmissionCumulative
+(
+    region    TEXT,
+    emis_comm TEXT
+        REFERENCES Commodity (name),
+    operator	TEXT  NOT NULL DEFAULT "le"
+    	REFERENCES Operator (operator),
+    value     REAL,
+    units     TEXT,
+    notes     TEXT,
+    PRIMARY KEY (region, emis_comm, operator)
+)
 CREATE TABLE IF NOT EXISTS LinkedTech
 (
     primary_region TEXT,

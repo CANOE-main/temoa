@@ -55,6 +55,7 @@ logger = getLogger(__name__)
 tables_with_regional_groups = {
     'LimitAnnualCapacityFactor': 'region',
     'LimitEmission': 'region',
+    'LimitEmissionCumulative': 'region',
     'LimitSeasonalCapacityFactor': 'region',
     'LimitCapacity': 'region',
     'LimitActivity': 'region',
@@ -978,6 +979,13 @@ class HybridLoader:
             raw = self.raw_check_mi_period(mi, cur=cur, qry='SELECT region, period, emis_comm, operator, value FROM main.LimitEmission')
             load_element(M.LimitEmission, raw)
 
+        # LimitEmissionCumulative
+        if self.table_exists('LimitEmissionCumulative'):
+            raw = cur.execute(
+                'SELECT region, emis_comm, operator, value FROM main.LimitEmissionCumulative'
+            ).fetchall()
+            load_element(M.LimitEmissionCumulative, raw)
+
         # EmissionActivity
         # The current emission constraint screens by valid inputs, so if it is NOT
         # built in a particular region, this should still be OK
@@ -1152,6 +1160,7 @@ class HybridLoader:
             M.CostEmission.name: M.CostEmission_rpe.name,
             M.Demand.name: M.DemandConstraint_rpc.name,
             M.LimitEmission.name: M.LimitEmissionConstraint_rpe.name,
+            M.LimitEmissionCumulative.name: M.LimitEmissionCumulativeConstraint_re.name,
             M.LimitActivity.name: M.LimitActivityConstraint_rpt.name,
             M.LimitSeasonalCapacityFactor.name: M.LimitSeasonalCapacityFactorConstraint_rpst.name,
             M.LimitActivityShare.name: M.LimitActivityShareConstraint_rpgg.name,

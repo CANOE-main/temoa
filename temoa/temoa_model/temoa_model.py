@@ -474,6 +474,10 @@ class TemoaModel(AbstractModel):
             within=M.regionalGlobalIndices * M.time_optimize * M.commodity_emissions * M.operator
         )
         M.LimitEmission = Param(M.LimitEmissionConstraint_rpe)
+        M.LimitEmissionCumulativeConstraint_re = Set(
+            within=M.regionalGlobalIndices * M.commodity_emissions * M.operator
+        )
+        M.LimitEmissionCumulative = Param(M.LimitEmissionCumulativeConstraint_re)
         M.EmissionActivity_reitvo = Set(dimen=6, initialize=EmissionActivityIndices)
         M.EmissionActivity = Param(M.EmissionActivity_reitvo)
 
@@ -739,6 +743,9 @@ class TemoaModel(AbstractModel):
         
         M.LimitEmissionConstraint = Constraint(
             M.LimitEmissionConstraint_rpe, rule=LimitEmission_Constraint
+        )
+        M.LimitEmissionCumulativeConstraint = Constraint(
+            M.LimitEmissionCumulativeConstraint_re, rule=LimitEmissionCumulative_Constraint
         )
         M.progress_marker_7 = BuildAction(
             ['Starting LimitGrowth and Activity Constraints'], rule=progress_check

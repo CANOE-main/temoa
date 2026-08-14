@@ -2476,44 +2476,11 @@ def ReserveMarginDynamic(M: 'TemoaModel', r, p, s, d):
     return available
 
 
-def LimitEmission_Constraint(M: 'TemoaModel', r, p, e, op):
-    r"""
-
-    A modeler can track emissions through use of the :code:`commodity_emissions`
-    set and :code:`EmissionActivity` parameter.  The :math:`EAC` parameter is
-    analogous to the efficiency table, tying emissions to a unit of activity.  The
-    LimitEmission constraint allows the modeler to assign an upper bound per period
-    to each emission commodity. Note that this constraint sums emissions from
-    technologies with output varying at the time slice and those with constant annual
-    output in separate terms.
-
-    .. math::
-       :label: LimitEmission
-
-           \sum_{S,D,I,T,V,O|{r,e,i,t,v,o} \in EAC} \left (
-           EAC_{r, e, i, t, v, o} \cdot \textbf{FO}_{r, p, s, d, i, t, v, o}
-           \right ) & \\
-           +
-           \sum_{I,T,V,O|{r,e,i,t \in T^{a},v,o} \in EAC} (
-           EAC_{r, e, i, t, v, o} \cdot & \textbf{FOA}_{r, p, i, t \in T^{a}, v, o}
-            )
-           \le
-           ELM_{r, p, e}
-
-           \\
-           & \forall \{r, p, e\} \in \Theta_{\text{LimitEmission}}
-
-    """
-    emission_limit = value(M.LimitEmission[r, p, e, op])
-
-    # r can be an individual region (r='US'), or a combination of regions separated by a + (r='Mexico+US+Canada'),
-    # or 'global'.  Note that regions!=M.regions. We iterate over regions to find actual_emissions
-    # and actual_emissions_annual.
-
-    # if r == 'global', the constraint is system-wide
+def _period_emissions(M: 'TemoaModel', r, p, e):
+    """Just a helper to sum emissions within each period"""
 
     regions = gather_group_regions(M, r)
-
+    
     # ================= Emissions and Flex and Curtailment =================
     # Flex flows are deducted from V_FlowOut, so it is NOT NEEDED to tax them again.  (See commodity balance constr)
     # Curtailment does not draw any inputs, so it seems logical that curtailed flows not be taxed either
@@ -2554,16 +2521,70 @@ def LimitEmission_Constraint(M: 'TemoaModel', r, p, e, op):
         * value(M.EmissionEndOfLife[reg, e, t, v])
         for reg in regions
         for (S_r, S_e, t, v) in M.EmissionEndOfLife.sparse_iterkeys()
-        if (r, t, v) in M.retirementPeriods and p in M.retirementPeriods[r, t, v]
+        if (reg, t, v) in M.retirementPeriods and p in M.retirementPeriods[reg, t, v]
         if S_r == reg and S_e == e
     )
 
-    lhs = (
+    return (
         process_emissions + process_emissions_annual + embodied_emissions + retirement_emissions
         # + emissions_flex # NO! flex is subtracted from flowout, already accounted by flowout
         # + emissions_curtail # NO! curtailed flows are not actual flows, just an accounting tool
         # + emissions_flex_annual # NO! flexannual is subtracted from flowoutannual, already accounted
     )
+
+
+def LimitEmission_Constraint(M: 'TemoaModel', r, p, e, op):
+    r"""
+
+    A modeler can track emissions through use of the :code:`commodity_emissions`
+    set and :code:`EmissionActivity` parameter.  The :math:`EAC` parameter is
+    analogous to the efficiency table, tying emissions to a unit of activity.  The
+    LimitEmission constraint allows the modeler to assign an upper bound per period
+    to each emission commodity. Note that this constraint sums emissions from
+    technologies with output varying at the time slice and those with constant annual
+    output in separate terms.
+
+    .. math::
+       :label: LimitEmission
+
+           \sum_{S,D,I,T,V,O|{r,e,i,t,v,o} \in EAC} \left (
+           EAC_{r, e, i, t, v, o} \cdot \textbf{FO}_{r, p, s, d, i, t, v, o}
+           \right ) & \\
+           +
+           \sum_{I,T,V,O|{r,e,i,t \in T^{a},v,o} \in EAC} (
+           EAC_{r, e, i, t, v, o} \cdot & \textbf{FOA}_{r, p, i, t \in T^{a}, v, o}
+            )
+           \le
+           ELM_{r, p, e}
+
+           \\
+           & \forall \{r, p, e\} \in \Theta_{\text{LimitEmission}}
+
+    """
+    emission_limit = value(M.LimitEmission[r, p, e, op])
+
+    lhs = _period_emissions(M, r, p, e)
+    expr = operator_expression(lhs, op, emission_limit)
+
+    # in the case that there is nothing to sum, skip
+    if isinstance(expr, bool):  # an empty list was generated
+        msg = (
+            "Warning: No technology produces emission '%s', though limit was " 'specified as %s.\n'
+        )
+        logger.warning(msg, (e, emission_limit))
+        SE.write(msg % (e, emission_limit))
+        return Constraint.Skip
+    
+    return expr
+
+
+def LimitEmissionCumulative_Constraint(M: 'TemoaModel', r, e, op):
+    r"""
+    A variant of LimitEmission which sums over all periods. Not recommended in myopic mode.
+    """
+    emission_limit = value(M.LimitEmissionCumulative[r, e, op])
+
+    lhs = sum(_period_emissions(M, r, p, e) for p in M.time_optimize)
     expr = operator_expression(lhs, op, emission_limit)
 
     # in the case that there is nothing to sum, skip
